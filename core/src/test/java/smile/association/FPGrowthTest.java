@@ -1,0 +1,210 @@
+/*
+ * Copyright (c) 2010-2026 Haifeng Li. All rights reserved.
+ *
+ * SMILE is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * SMILE is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with SMILE. If not, see <https://www.gnu.org/licenses/>.
+ */
+package smile.association;
+
+import java.util.List;
+import java.util.NoSuchElementException;
+import org.junit.jupiter.api.*;
+import static org.junit.jupiter.api.Assertions.*;
+
+/**
+ *
+ * @author Haifeng
+ */
+@SuppressWarnings("unused")
+public class FPGrowthTest {
+    
+    int[][] itemsets = {
+        {1, 3},
+        {2},
+        {4},
+        {2, 3, 4},
+        {2, 3},
+        {2, 3},
+        {1, 2, 3, 4},
+        {1, 3},
+        {1, 2, 3},
+        {1, 2, 3}
+    };
+
+    int[][] itemsets2 = {
+            {1, 2, 3, 4}
+    };
+    
+    public FPGrowthTest() {
+    }
+
+    @BeforeAll
+    public static void setUpClass() throws Exception {
+    }
+
+    @AfterAll
+    public static void tearDownClass() throws Exception {
+    }
+    
+    @BeforeEach
+    public void setUp() {
+    }
+    
+    @AfterEach
+    public void tearDown() {
+    }
+
+    @Test
+    public void test() {
+        System.out.println("FP-Growth");
+        FPTree tree = FPTree.of(3, itemsets);
+        List<ItemSet> results = FPGrowth.apply(tree).toList();
+        for (var itemSet : results) {
+            System.out.println(itemSet);
+        }
+
+        assertEquals(8, results.size());
+
+        assertEquals(3, results.get(0).support());
+        assertEquals(1, results.get(0).items().length);
+        assertEquals(4, results.get(0).items()[0]);
+        
+        assertEquals(5, results.get(1).support());
+        assertEquals(1, results.get(1).items().length);
+        assertEquals(1, results.get(1).items()[0]);
+        
+        assertEquals(6, results.get(6).support());
+        assertEquals(2, results.get(6).items().length);
+        assertEquals(3, results.get(6).items()[0]);
+        assertEquals(2, results.get(6).items()[1]);
+        
+        assertEquals(8, results.get(7).support());
+        assertEquals(1, results.get(7).items().length);
+        assertEquals(3, results.get(7).items()[0]);
+    }
+
+    @Test
+    public void testSinglePath() {
+        System.out.println("single path");
+
+        FPTree tree = FPTree.of(1, itemsets2);
+        assertEquals(15, FPGrowth.apply(tree).count());
+    }
+
+    @Test
+    @Tag("integration")
+    public void testPima() {
+        System.out.println("pima");
+
+        FPTree tree = FPTree.of(20, () -> ItemSetTestData.read("transaction/pima.D38.N768.C2"));
+        assertEquals(1803, FPGrowth.apply(tree).count());
+    }
+    
+    @Test
+    @Tag("integration")
+    public void testKosarak() {
+        System.out.println("kosarak");
+
+        FPTree tree = FPTree.of(1500, () -> ItemSetTestData.read("transaction/kosarak.dat"));
+        assertEquals(219725, FPGrowth.apply(tree).count());
+    }
+
+    @Test
+    public void givenFPGrowthIterator_whenExhausted_thenNextThrowsNoSuchElementException() {
+        // Given
+        FPTree tree = FPTree.of(3, itemsets);
+        FPGrowth growth = new FPGrowth(tree);
+        var iterator = growth.iterator();
+        while (iterator.hasNext()) {
+            iterator.next();
+        }
+
+        // When / Then
+        assertThrows(NoSuchElementException.class, iterator::next);
+    }
+
+    @Test
+    public void givenDuplicateItemsInTransactions_whenMining_thenSupportIsNotInflated() {
+        // Given
+        int[][] duplicated = {
+                {1, 1, 2},
+                {1, 2},
+                {1, 1, 1, 2}
+        };
+
+        // When
+        FPTree tree = FPTree.of(2, duplicated);
+        List<ItemSet> results = FPGrowth.apply(tree).toList();
+
+        // Then
+        assertEquals(3, supportOf(results, 1));
+        assertEquals(3, supportOf(results, 2));
+        assertEquals(3, supportOf(results, 1, 2));
+    }
+
+    private static int supportOf(List<ItemSet> sets, int... items) {
+        for (ItemSet set : sets) {
+            if (sameItems(set.items(), items)) {
+                return set.support();
+            }
+        }
+        fail("Missing itemset");
+        return -1;
+    }
+
+    private static boolean sameItems(int[] a, int[] b) {
+        if (a.length != b.length) return false;
+        for (int x : a) {
+            boolean found = false;
+            for (int y : b) {
+                if (x == y) { found = true; break; }
+            }
+            if (!found) return false;
+        }
+        return true;
+    }
+
+    @Test
+    public void givenItemSet_whenEqualsHashCodeToString_thenCorrect() {
+        // Given
+        ItemSet a = new ItemSet(new int[]{1, 2, 3}, 5);
+        ItemSet b = new ItemSet(new int[]{1, 2, 3}, 5);
+        ItemSet c = new ItemSet(new int[]{1, 2, 3}, 4);
+        ItemSet d = new ItemSet(new int[]{1, 2},    5);
+
+        // equals / hashCode
+        assertEquals(a, b);
+        assertEquals(a.hashCode(), b.hashCode());
+        assertNotEquals(a, c);
+        assertNotEquals(a, d);
+
+        // toString
+        String s = a.toString();
+        assertTrue(s.contains("support"), "toString should mention 'support'");
+        assertTrue(s.contains("5"),       "toString should include the support value");
+    }
+
+    @Test
+    public void givenPercentageMinSupport_whenFPGrowth_thenConsistentWithAbsoluteSupport() {
+        // Given — 10 transactions, 30% = 3
+        FPTree treeAbs = FPTree.of(3,   itemsets);
+        FPTree treePct = FPTree.of(0.3, itemsets);
+
+        // When
+        long countAbs = FPGrowth.apply(treeAbs).count();
+        long countPct = FPGrowth.apply(treePct).count();
+
+        // Then
+        assertEquals(countAbs, countPct);
+    }
+}

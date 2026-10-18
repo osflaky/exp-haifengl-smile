@@ -1,0 +1,52 @@
+/*
+ * Copyright (c) 2010-2026 Haifeng Li. All rights reserved.
+ *
+ * SMILE is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * SMILE is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with SMILE. If not, see <https://www.gnu.org/licenses/>.
+ */
+package smile.json
+
+import java.lang.StringBuilder as JStringBuilder
+
+/**
+ * A JsonPrinter that produces compact JSON source without any superfluous whitespace.
+ * Adopt from spray-json.
+ */
+trait CompactPrinter extends JsonPrinter {
+
+  def print(x: JsValue, sb: JStringBuilder): Unit = {
+    x match {
+      case JsObject(x) => printObject(x, sb)
+      case JsArray(x)  => printArray(x, sb)
+      case _ => printLeaf(x, sb)
+    }
+  }
+
+  protected def printObject(members: Iterable[(String, JsValue)], sb: JStringBuilder): Unit = {
+    sb.append('{')
+    printSeq(members, sb.append(',')) { m =>
+      printString(m._1, sb)
+      sb.append(':')
+      print(m._2, sb)
+    }
+    sb.append('}')
+  }
+
+  protected def printArray(elements: Iterable[JsValue], sb: JStringBuilder): Unit = {
+    sb.append('[')
+    printSeq(elements, sb.append(','))(print(_, sb))
+    sb.append(']')
+  }
+}
+
+object CompactPrinter extends CompactPrinter

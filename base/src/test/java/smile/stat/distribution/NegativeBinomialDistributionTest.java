@@ -1,0 +1,190 @@
+/*
+ * Copyright (c) 2010-2026 Haifeng Li. All rights reserved.
+ *
+ * SMILE is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * SMILE is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with SMILE. If not, see <https://www.gnu.org/licenses/>.
+ */
+package smile.stat.distribution;
+
+import org.junit.jupiter.api.*;
+import static org.junit.jupiter.api.Assertions.*;
+
+/**
+ *
+ * @author Haifeng Li
+ */
+public class NegativeBinomialDistributionTest {
+
+    public NegativeBinomialDistributionTest() {
+    }
+
+    @BeforeAll
+    public static void setUpClass() throws Exception {
+    }
+
+    @AfterAll
+    public static void tearDownClass() throws Exception {
+    }
+
+    @BeforeEach
+    public void setUp() {
+    }
+
+    @AfterEach
+    public void tearDown() {
+    }
+
+    /**
+     * Test of length method, of class NegativeBinomialDistribution.
+     */
+    @Test
+    public void testLength() {
+        System.out.println("length");
+        NegativeBinomialDistribution instance = new NegativeBinomialDistribution(3, 0.3);
+        instance.rand();
+        assertEquals(2, instance.length());
+    }
+
+    /**
+     * Test of mean method, of class NegativeBinomialDistribution.
+     */
+    @Test
+    public void testMean() {
+        System.out.println("mean");
+        NegativeBinomialDistribution instance = new NegativeBinomialDistribution(3, 0.3);
+        instance.rand();
+        assertEquals(7, instance.mean(), 1E-7);
+    }
+
+    /**
+     * Test of variance method, of class NegativeBinomialDistribution.
+     */
+    @Test
+    public void testVariance() {
+        System.out.println("variance");
+        NegativeBinomialDistribution instance = new NegativeBinomialDistribution(3, 0.3);
+        instance.rand();
+        assertEquals(7/0.3, instance.variance(), 1E-7);
+    }
+
+    /**
+     * Test of sd method, of class NegativeBinomialDistribution.
+     */
+    @Test
+    public void testSd() {
+        System.out.println("sd");
+        NegativeBinomialDistribution instance = new NegativeBinomialDistribution(3, 0.3);
+        instance.rand();
+        assertEquals(Math.sqrt(7/0.3), instance.sd(), 1E-7);
+    }
+
+    /**
+     * Test of p method, of class NegativeBinomialDistribution.
+     */
+    @Test
+    public void testP() {
+        System.out.println("p");
+        NegativeBinomialDistribution instance = new NegativeBinomialDistribution(3, 0.3);
+        instance.rand();
+        assertEquals(0.027, instance.p(0), 1E-7);
+        assertEquals(0.0567, instance.p(1), 1E-7);
+        assertEquals(0.07938, instance.p(2), 1E-7);
+        assertEquals(0.09261, instance.p(3), 1E-7);
+        assertEquals(0.05033709, instance.p(10), 1E-7);
+    }
+
+    /**
+     * Test of logP method, of class NegativeBinomialDistribution.
+     */
+    @Test
+    public void testLogP() {
+        System.out.println("logP");
+        NegativeBinomialDistribution instance = new NegativeBinomialDistribution(3, 0.3);
+        instance.rand();
+        assertEquals(Math.log(0.027), instance.logp(0), 1E-7);
+        assertEquals(Math.log(0.0567), instance.logp(1), 1E-7);
+        assertEquals(Math.log(0.07938), instance.logp(2), 1E-7);
+        assertEquals(Math.log(0.09261), instance.logp(3), 1E-7);
+        assertEquals(Math.log(0.05033709), instance.logp(10), 1E-7);
+    }
+
+    /**
+     * Test of cdf method, of class NegativeBinomialDistribution.
+     */
+    @Test
+    public void testCdf() {
+        System.out.println("cdf");
+        NegativeBinomialDistribution instance = new NegativeBinomialDistribution(3, 0.3);
+        instance.rand();
+        assertEquals(0.027, instance.cdf(0), 1E-7);
+        assertEquals(0.0837, instance.cdf(1), 1E-7);
+        assertEquals(0.16308, instance.cdf(2), 1E-7);
+        assertEquals(0.25569, instance.cdf(3), 1E-7);
+        assertEquals(0.7975217, instance.cdf(10), 1E-7);
+    }
+
+    /**
+     * Test of quantile method, of class NegativeBinomialDistribution.
+     */
+    @Test
+    public void testQuantile() {
+        System.out.println("quantile");
+        NegativeBinomialDistribution instance = new NegativeBinomialDistribution(3, 0.3);
+        instance.rand();
+        assertEquals(0, instance.quantile(0), 1E-7);
+        assertEquals(0, instance.quantile(0.001), 1E-7);
+        assertEquals(0, instance.quantile(0.01), 1E-7);
+        assertEquals(2, instance.quantile(0.1), 1E-7);
+        assertEquals(3, instance.quantile(0.2), 1E-7);
+        assertEquals(13, instance.quantile(0.9), 1E-7);
+        assertEquals(22, instance.quantile(0.99), 1E-7);
+        assertEquals(30, instance.quantile(0.999), 1E-7);
+    }
+
+    /**
+     * Test MOM fit of NegativeBinomialDistribution.
+     */
+    @Test
+    public void testFit() {
+        System.out.println("NegativeBinomialDistribution fit");
+        smile.math.MathEx.setSeed(19650218);
+        NegativeBinomialDistribution instance = new NegativeBinomialDistribution(3.0, 0.3);
+        int[] data = instance.randi(2000);
+        NegativeBinomialDistribution est = NegativeBinomialDistribution.fit(data);
+        assertEquals(3.0, est.r, 0.5);
+        assertEquals(0.3, est.p, 0.05);
+    }
+
+    /**
+     * p(k) used to overflow past k = 161. Mean is 90 and sd is 30 here, so those
+     * are ordinary values. Reference values from mpmath at 120 digits.
+     */
+    @Test
+    public void testPmfLargeK() {
+        System.out.println("p(k) for large k");
+        NegativeBinomialDistribution instance = new NegativeBinomialDistribution(10, 0.1);
+        assertEquals(0.0011318291241213503,  instance.p(161), 1E-15);
+        assertEquals(0.0010752376679152827,  instance.p(162), 1E-15);
+        assertEquals(0.0007442757647287806,  instance.p(169), 1E-15);
+        assertEquals(1.1790936128864348E-7,  instance.p(300), 1E-16);
+
+        double sum = 0.0;
+        for (int k = 0; k <= 400; k++) {
+            assertTrue(Double.isFinite(instance.p(k)), "p(" + k + ") = " + instance.p(k));
+            sum += instance.p(k);
+        }
+        // The pmf sum has to agree with cdf(), which goes through the incomplete beta.
+        assertEquals(instance.cdf(400), sum, 1E-9);
+    }
+}
+

@@ -1,0 +1,199 @@
+/*
+ * Copyright (c) 2010-2026 Haifeng Li. All rights reserved.
+ *
+ * SMILE is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * SMILE is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with SMILE. If not, see <https://www.gnu.org/licenses/>.
+ */
+package smile.llm.transformer;
+
+import java.util.Arrays;
+import smile.deep.tensor.Index;
+import smile.deep.tensor.ScalarType;
+import smile.deep.tensor.Tensor;
+import smile.util.AutoScope;
+import smile.util.Tuple2;
+
+/**
+ * Rotary positional encoding (RoPE). RoPE encodes the absolute position with
+ * a rotation matrix and meanwhile incorporates the explicit relative position
+ * dependency in self-attention formulation. Notably, RoPE enables the
+ * flexibility of sequence length, decaying inter-token dependency with
+ * increasing relative distances, and the capability of equipping the linear
+ * self-attention with relative position encoding.
+ *
+ * @author Haifeng Li
+ */
+public interface RotaryPositionalEncoding {
+    /**
+     * Applies rotary embeddings to the input query and key tensors.
+     * It ensures that the output tensors have the same data type as
+     * the input tensors.
+     *
+     * @param xq the query tensor.
+     * @param xk the key tensor.
+     * @param cis the frequency tensor for complex exponentials.
+     * @return the tuple of modified query tensor and key tensor with
+     * rotary embeddings.
+     */
+    static Tuple2<Tensor, Tensor> apply(Tensor xq, Tensor xk, Tensor cis) {
+        int ndim = xq.dim();
+        long[] xqShape = Arrays.copyOf(xq.shape(), ndim + 1);
+        long[] xkShape = Arrays.copyOf(xk.shape(), ndim + 1);
+        xqShape[ndim - 1] = xkShape[ndim - 1] = -1;
+        xqShape[ndim] = xkShape[ndim] = 2;
+
+        try (var scope = new AutoScope()) {
+            Tensor.push(scope);
+            try {
+                Tensor xqF = xq.to(ScalarType.Float);
+                Tensor xqR = xqF.reshape(xqShape);
+                Tensor xq_ = xqR.viewAsComplex();
+                Tensor xkF = xk.to(ScalarType.Float);
+                Tensor xkR = xkF.reshape(xkShape);
+                Tensor xk_ = xkR.viewAsComplex();
+                Tensor pe = reshapeForBroadcast(cis, xq_);
+                Tensor xqM = xq_.mul_(pe);
+                Tensor xqReal = xqM.viewAsReal();
+                Tensor xq_out = xqReal.flatten(3);
+                Tensor xkM = xk_.mul_(pe);
+                Tensor xkReal = xkM.viewAsReal();
+                Tensor xk_out = xkReal.flatten(3);
+                Tensor qOut = xq_out.to(xq.dtype());
+                Tensor kOut = xk_out.to(xk.dtype());
+                qOut.promoteToParent();
+                kOut.promoteToParent();
+                return new Tuple2<>(qOut, kOut);
+            } finally {
+                Tensor.pop();
+            }
+        }
+    }
+
+    /**
+     * Precompute the frequency tensor for complex exponentials (cis).
+     * with default theta 10000.0.
+     * @param dim the dimension of the frequency tensor.
+     * @param end the end index for precomputing frequencies.
+     * @return the precomputed frequency tensor for complex exponentials.
+     */
+    static Tensor computeFreqCis(int dim, int end) {
+        return  computeFreqCis(dim, end, 10000.0, false);
+    }
+
+    /**
+     * Precompute the frequency tensor for complex exponentials (cis).
+     * @param dim the dimension of the frequency tensor.
+     * @param end the end index for precomputing frequencies.
+     * @param theta the scaling factor for frequency computation.
+     * @param scaling if true, scale the frequency tensor.
+     * @return the precomputed frequency tensor for complex exponentials.
+     */
+    static Tensor computeFreqCis(int dim, int end, double theta, boolean scaling) {
+        // Explicitly convert tensor to float32 as the default is bf16.
+        // On the other hand, view_as_complex cannot apply on bf16.
+        try (Tensor t0 = Tensor.arange(0, end, 1);
+             Tensor t = t0.to(ScalarType.Float);
+             Tensor f0 = Tensor.arange(0, dim, 2);
+             Tensor f = f0.to(ScalarType.Float).mul_(-Math.log(theta) / dim).exp_()) {
+            // When scaling=true, scale() modifies f in-place and returns the same
+            // reference — so we must NOT assign freqs into the try-resources again
+            // to avoid a double-close on f.
+            Tensor freqs = scaling ? scale(f) : f;
+            try (Tensor tfreqs = t.outer(freqs);
+                 Tensor ones = freqs.newOnes()) {
+                return Tensor.polar(ones, tfreqs); // complex64
+            }
+        }
+    }
+
+    /**
+     * Gathers frequency rows for per-request decode positions.
+     *
+     * @param cis       full table {@code [maxPos, headDim/2]} (complex).
+     * @param positions absolute positions, one per batch row.
+     * @return complex freqs {@code [B, headDim/2]} (caller owns).
+     */
+    public static Tensor gather(Tensor cis, int[] positions) {
+        if (positions == null || positions.length == 0) {
+            throw new IllegalArgumentException("positions must be non-empty");
+        }
+        try (var idx = Index.of(positions)) {
+            // Remain on the caller's AutoScope (e.g. LlamaModel.forward) so
+            // Tensor.pop() frees this gather; promoteToParent with a single
+            // scope would detach and leak every decode step.
+            return cis.get(idx);
+        }
+    }
+
+    /**
+     * Reshapes the cis tensor to match the shape of the target tensor x for
+     * broadcasting purposes, allowing for element-wise operations between
+     * tensors of compatible shapes.
+     *
+     * <p>Uniform prefill uses {@code cis} shaped {@code [S, D]} → broadcast
+     * {@code [1, S, 1, D]}. Per-row decode uses gathered {@code [B, D]} with
+     * {@code S == 1} → {@code [B, 1, 1, D]}.
+     *
+     * @param cis the frequency tensor for complex exponentials.
+     * @param x the target tensor for broadcasting.
+     * @return the reshaped cis tensor view.
+     */
+    static Tensor reshapeForBroadcast(Tensor cis, Tensor x) {
+        int dim = x.dim();
+        long[] xs = x.shape();
+        long[] cs = cis.shape();
+        long[] shape = new long[dim];
+        Arrays.fill(shape, 1);
+        shape[dim - 1] = xs[dim - 1];
+        // Per-row decode freqs: [B, D] with query seqLen == 1.
+        if (cs.length == 2 && cs[0] == xs[0] && xs[1] == 1) {
+            shape[0] = xs[0];
+            shape[1] = 1;
+            return cis.view(shape);
+        }
+        // Uniform: [S, D] → [1, S, …, D]
+        shape[1] = xs[1];
+        return cis.view(shape);
+    }
+
+    /**
+     * Adapts RoPE to longer input lengths.
+     * @param freqs the frequency tensor.
+     * @return the scaled frequency tensor.
+     */
+    static Tensor scale(Tensor freqs) {
+        // Values obtained from grid search
+        int scale_factor = 8;
+        int low_freq_factor = 1;
+        int high_freq_factor = 4;
+        int old_context_len = 8192;  // original llama3 length
+
+        int low_freq_wavelen = old_context_len / low_freq_factor;
+        int high_freq_wavelen = old_context_len / high_freq_factor;
+        int n = (int) freqs.shape()[0];
+        for (int i = 0; i < n; i++) {
+            float freq = freqs.getFloat(i);
+            float wavelen = (float) (2 * Math.PI / freq);
+            if (wavelen < high_freq_wavelen) {
+                // freqs.put_(freq, i);
+            } else if (wavelen > low_freq_wavelen) {
+                freqs.put_(freq / scale_factor, i);
+            } else {
+                // assert low_freq_wavelen != high_freq_wavelen;
+                float smooth = (old_context_len / wavelen - low_freq_factor) / (high_freq_factor - low_freq_factor);
+                freqs.put_((1 - smooth) * freq / scale_factor + smooth * freq, i);
+            }
+        }
+        return freqs;
+    }
+}

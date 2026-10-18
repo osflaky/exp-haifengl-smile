@@ -1,0 +1,110 @@
+/*
+ * Copyright (c) 2010-2026 Haifeng Li. All rights reserved.
+ *
+ * SMILE is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * SMILE is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with SMILE. If not, see <https://www.gnu.org/licenses/>.
+ */
+package smile.hash;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Perfect hash based immutable map. This can be used as a lookup table with
+ * constant worst-case access time.
+ *
+ * @param <T> the data type of set objects.
+ *
+ * @author Haifeng Li
+ */
+public class PerfectMap<T> {
+    /** Perfect hash of keywords. */
+    private final PerfectHash hash;
+    /** The value set. */
+    private final List<T> values;
+
+    /**
+     * The builder of perfect map.
+     * @param <T> the data type of set objects.
+     */
+    public static class Builder<T> {
+        /** Key-value map. */
+        private final Map<String, T> map = new HashMap<>();
+
+        /** Constructor. */
+        public Builder() {
+
+        }
+
+        /**
+         * Constructor.
+         * @param map the initialization map.
+         */
+        public Builder(Map<String, T> map) {
+            this.map.putAll(map);
+        }
+
+        /**
+         * Add a new key-value pair.
+         * @param key the key.
+         * @param value the value.
+         * @return this builder.
+         */
+        public Builder<T> add(String key, T value) {
+            map.put(key, value);
+            return this;
+        }
+
+        /**
+         * Builds the perfect map.
+         * @return the perfect map.
+         */
+        public PerfectMap<T> build() {
+            String[] keys = map.keySet().toArray(new String[0]);
+            // Build PerfectHash over the key set.
+            PerfectHash hash = new PerfectHash(keys);
+            // PerfectHash.get(key) returns the index of key in the keywords[] array
+            // (i.e. its position in keys[]). We must store values in exactly that
+            // same order so that values.get(i) matches keys[i].
+            @SuppressWarnings("unchecked")
+            T[] values = (T[]) new Object[keys.length];
+            for (String key : keys) {
+                int idx = hash.get(key);
+                values[idx] = map.get(key);
+            }
+            return new PerfectMap<>(hash, List.of(values));
+        }
+    }
+
+    /**
+     * Private constructor. The user should use the Builder
+     * to create the immutable map.
+     */
+    private PerfectMap(PerfectHash hash, List<T> values) {
+        this.hash = hash;
+        this.values = values;
+    }
+
+    /**
+     * Returns the value associated with the key. Returns null if
+     * the key doesn't exist in the map.
+     * @param key the key.
+     * @return the value or null.
+     */
+    public T get(String key) {
+        int i = hash.get(key);
+        if (i < 0) return null;
+        return values.get(i);
+    }
+}

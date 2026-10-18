@@ -1,0 +1,40 @@
+/*
+ * Copyright (c) 2010-2026 Haifeng Li. All rights reserved.
+ *
+ * SMILE is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * SMILE is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with SMILE. If not, see <https://www.gnu.org/licenses/>.
+ */
+package smile.validation.metric;
+
+import java.io.Serializable;
+import java.util.function.ToDoubleBiFunction;
+
+/**
+ * An abstract interface to measure the classification performance.
+ *
+ * @author Haifeng Li
+ */
+public interface ClassificationMetric extends ToDoubleBiFunction<int[], int[]>, Serializable {
+    /**
+     * Returns a score to measure the quality of classification.
+     * @param truth the true class labels.
+     * @param prediction the predicted class labels.
+     * @return the metric.
+     */
+    double score(int[] truth, int[] prediction);
+
+    @Override
+    default double applyAsDouble(int[]  truth, int[] prediction) {
+        return score(truth, prediction);
+    }
+}

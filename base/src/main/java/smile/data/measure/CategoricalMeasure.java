@@ -1,0 +1,306 @@
+/*
+ * Copyright (c) 2010-2026 Haifeng Li. All rights reserved.
+ *
+ * SMILE is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * SMILE is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with SMILE. If not, see <https://www.gnu.org/licenses/>.
+ */
+package smile.data.measure;
+
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.IntStream;
+
+import smile.data.type.DataType;
+import smile.data.type.DataTypes;
+
+/**
+ * Categorical data can be stored into groups or categories with the aid of
+ * names or labels. Also known as qualitative data, each element of a
+ * categorical data can be placed in only one category according to
+ * its qualities, where each of the categories is mutually exclusive.
+ * <p>
+ * Categorical data may be subdivided into nominal data and ordinal data.
+ * <p>
+ * Both integer and string variables can be made into categorical measure,
+ * but a categorical measure's levels will always be string values.
+ *
+ * @author Haifeng Li
+ */
+public abstract class CategoricalMeasure implements Measure {
+    /**
+     * The valid values.
+     */
+    final int[] values;
+    /**
+     * The levels of measurement.
+     */
+    final String[] levels;
+    /**
+     * Map an integer to string.
+     */
+    final Map<Number, String> value2level;
+    /**
+     * Map a string to an integer level.
+     */
+    final Map<String, Number> level2value;
+    /**
+     * Map an integer value to its factor index in [0, size).
+     * Only populated when values are not standard factors [0, 1, 2, ..., k).
+     */
+    final int[] value2factor;
+    /**
+     * The flag if the values are of standard factor [0, 1, 2, ..., k).
+     */
+    final boolean factor;
+
+    /**
+     * Constructor.
+     * @param levels the levels of discrete values.
+     */
+    public CategoricalMeasure(String... levels) {
+        this(IntStream.range(0, levels.length).toArray(), levels);
+    }
+
+    /**
+     * Constructor.
+     * @param levels the levels of discrete values.
+     */
+    public CategoricalMeasure(List<String> levels) {
+        this(levels.toArray(new String[0]));
+    }
+
+    /**
+     * Constructor.
+     * @param values the valid values.
+     */
+    public CategoricalMeasure(int[] values) {
+        this(values, Arrays.stream(values).mapToObj(Integer::toString).toArray(String[]::new));
+    }
+
+    /**
+     * Constructor.
+     * @param values the valid values.
+     * @param levels the levels of discrete values.
+     */
+    public CategoricalMeasure(int[] values, String[] levels) {
+        if (values.length != levels.length) {
+            throw new IllegalArgumentException("The size of values and levels don't match");
+        }
+
+        this.values = values;
+        this.levels = levels;
+        this.value2level = new HashMap<>();
+        this.level2value = new HashMap<>();
+
+        if (levels.length <= Byte.MAX_VALUE + 1) {
+            for (int i = 0; i < values.length; i++) {
+                value2level.put(values[i], levels[i]);
+                level2value.put(levels[i], (byte) values[i]);
+            }
+        } else if (levels.length <= Short.MAX_VALUE + 1) {
+            for (int i = 0; i < values.length; i++) {
+                value2level.put(values[i], levels[i]);
+                level2value.put(levels[i], (short) values[i]);
+            }
+        } else {
+            for (int i = 0; i < values.length; i++) {
+                value2level.put(values[i], levels[i]);
+                level2value.put(levels[i], values[i]);
+            }
+        }
+
+        boolean isFactor = true;
+        for (int i = 0; i < values.length; i++) {
+            if (values[i] != i) {
+                isFactor = false;
+                break;
+            }
+        }
+        this.factor = isFactor;
+
+        // Build reverse lookup from value -> factor index for non-factor scales
+        if (!isFactor) {
+            int maxValue = Arrays.stream(values).max().orElse(0);
+            // Use array if max value is within reasonable range; else leave as null and do linear scan
+            if (maxValue < values.length * 4 && maxValue >= 0) {
+                value2factor = new int[maxValue + 1];
+                Arrays.fill(value2factor, -1);
+                for (int i = 0; i < values.length; i++) {
+                    value2factor[values[i]] = i;
+                }
+            } else {
+                value2factor = null;
+            }
+        } else {
+            value2factor = null;
+        }
+    }
+
+    /**
+     * Returns the ordinal values of an enum.
+     * @param clazz the Class of an enum.
+     * @return the ordinal values of an enum.
+     */
+    static int[] values(Class<? extends Enum<?>> clazz) {
+        return Arrays.stream(clazz.getEnumConstants())
+                .mapToInt(Enum::ordinal)
+                .toArray();
+    }
+
+    /**
+     * Returns the string values of an enum.
+     * @param clazz the Class of an enum.
+     * @return the string values of an enum.
+     */
+    static String[] levels(Class<? extends Enum<?>> clazz) {
+        return Arrays.stream(clazz.getEnumConstants())
+                .map(Object::toString)
+                .toArray(String[]::new);
+    }
+
+    /**
+     * Returns the number of levels.
+     * @return the number of levels.
+     */
+    public int size() {
+        return levels.length;
+    }
+
+    /**
+     * Returns the valid value set.
+     * @return the valid value set.
+     */
+    public int[] values() {
+        return values;
+    }
+
+    /**
+     * Returns the levels.
+     * @return the levels.
+     */
+    public String[] levels() {
+        return levels;
+    }
+
+    /**
+     * Returns the level string representation.
+     * @param value the level value.
+     * @return the level string representation, or null if not found.
+     */
+    public String level(int value) {
+        return value2level.get(value);
+    }
+
+    /**
+     * Returns true if this measure contains the given integer value.
+     * @param value the integer value to check.
+     * @return true if value is a valid level code.
+     */
+    public boolean contains(int value) {
+        return value2level.containsKey(value);
+    }
+
+    /**
+     * Returns true if this measure contains the given level string.
+     * @param level the level string to check.
+     * @return true if the level string is a valid level.
+     */
+    public boolean contains(String level) {
+        return level2value.containsKey(level);
+    }
+
+    /**
+     * Returns the ordinal index (0-based position in the levels array)
+     * of the given level string, or -1 if not found.
+     * @param level the level string.
+     * @return the index in the levels array, or -1 if not found.
+     */
+    public int indexOf(String level) {
+        for (int i = 0; i < levels.length; i++) {
+            if (levels[i].equals(level)) return i;
+        }
+        return -1;
+    }
+
+    /**
+     * Returns the factor value (in range [0, size)) of level.
+     * @param value the level value.
+     * @return the factor value.
+     */
+    public int factor(int value) {
+        if (factor) return value;
+
+        if (value2factor != null) {
+            if (value >= 0 && value < value2factor.length) {
+                int f = value2factor[value];
+                if (f >= 0) return f;
+            }
+            throw new IllegalArgumentException("Invalid level: " + value);
+        }
+
+        for (int j = 0; j < values.length; j++) {
+            if (values[j] == value) return j;
+        }
+
+        throw new IllegalArgumentException("Invalid level: " + value);
+    }
+
+    /**
+     * Returns the data type that is suitable for this measure scale.
+     * @return the data type that is suitable for this measure scale.
+     */
+    public DataType type() {
+        if (levels.length <= Byte.MAX_VALUE + 1) {
+            return DataTypes.ByteType;
+        } else if (levels.length <= Short.MAX_VALUE + 1) {
+            return DataTypes.ShortType;
+        } else {
+            return DataTypes.IntType;
+        }
+    }
+
+    /**
+     * Returns the string value of a level.
+     * @param value the level value.
+     * @return the string value of a level.
+     */
+    public String toString(int value) {
+        return level(value);
+    }
+
+    @Override
+    public String toString(Object o) {
+        if (o == null) return "null";
+        return level(((Number) o).intValue());
+    }
+
+    @Override
+    public Number valueOf(String s) {
+        return level2value.get(s);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o instanceof CategoricalMeasure measure) {
+            return Arrays.equals(levels, measure.levels) && Arrays.equals(values, measure.values);
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return 31 * Arrays.hashCode(levels) + Arrays.hashCode(values);
+    }
+}

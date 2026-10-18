@@ -1,0 +1,233 @@
+/*
+ * Copyright (c) 2010-2026 Haifeng Li. All rights reserved.
+ *
+ * SMILE is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * SMILE is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with SMILE. If not, see <https://www.gnu.org/licenses/>.
+ */
+package smile.stat.distribution;
+
+import org.junit.jupiter.api.*;
+import static org.junit.jupiter.api.Assertions.*;
+
+/**
+ *
+ * @author Haifeng Li
+ */
+public class TDistributionTest {
+
+    public TDistributionTest() {
+    }
+
+    @BeforeAll
+    public static void setUpClass() throws Exception {
+    }
+
+    @AfterAll
+    public static void tearDownClass() throws Exception {
+    }
+
+    @BeforeEach
+    public void setUp() {
+    }
+
+    @AfterEach
+    public void tearDown() {
+    }
+
+    /**
+     * Test of length method, of class TDistribution.
+     */
+    @Test
+    public void testLength() {
+        System.out.println("length");
+        TDistribution instance = new TDistribution(20);
+        instance.rand();
+        assertEquals(1, instance.length());
+    }
+
+    /**
+     * Test of mean method, of class TDistribution.
+     */
+    @Test
+    public void testMean() {
+        System.out.println("mean");
+        TDistribution instance = new TDistribution(20);
+        instance.rand();
+        assertEquals(0.0, instance.mean(), 1E-7);
+    }
+
+    /**
+     * Test of variance method, of class TDistribution.
+     */
+    @Test
+    public void testVariance() {
+        System.out.println("variance");
+        TDistribution instance = new TDistribution(20);
+        instance.rand();
+        assertEquals(10/9.0, instance.variance(), 1E-7);
+    }
+
+    /**
+     * Test of sd method, of class TDistribution.
+     */
+    @Test
+    public void testSd() {
+        System.out.println("sd");
+        TDistribution instance = new TDistribution(20);
+        instance.rand();
+        assertEquals(Math.sqrt(10/9.0), instance.sd(), 1E-7);
+    }
+
+    /**
+     * Test of entropy method, of class TDistribution.
+     */
+    @Test
+    public void testEntropy() {
+        System.out.println("entropy");
+        TDistribution instance = new TDistribution(20);
+        assertEquals(1.46954202, instance.entropy(), 1E-7);
+    }
+
+    /**
+     * Test of p method, of class TDistribution.
+     */
+    @Test
+    public void testP() {
+        System.out.println("p");
+        TDistribution instance = new TDistribution(20);
+        instance.rand();
+        assertEquals(2.660085e-09, instance.p(-10.0), 1E-16);
+        assertEquals(0.05808722, instance.p(-2.0), 1E-7);
+        assertEquals(0.2360456, instance.p(-1.0), 1E-7);
+        assertEquals(0.3939886, instance.p(0.0), 1E-7);
+        assertEquals(0.2360456, instance.p(1.0), 1E-7);
+        assertEquals(0.05808722, instance.p(2.0), 1E-7);
+        assertEquals(2.660085e-09, instance.p(10.0), 1E-16);
+    }
+
+    /**
+     * Test of logP method, of class TDistribution.
+     */
+    @Test
+    public void testLogP() {
+        System.out.println("logP");
+        TDistribution instance = new TDistribution(20);
+        instance.rand();
+        assertEquals(Math.log(2.660085e-09), instance.logp(-10.0), 1E-5);
+        assertEquals(Math.log(0.05808722), instance.logp(-2.0), 1E-5);
+        assertEquals(Math.log(0.2360456), instance.logp(-1.0), 1E-5);
+        assertEquals(Math.log(0.3939886), instance.logp(0.0), 1E-5);
+        assertEquals(Math.log(0.2360456), instance.logp(1.0), 1E-5);
+        assertEquals(Math.log(0.05808722), instance.logp(2.0), 1E-5);
+        assertEquals(Math.log(2.660085e-09), instance.logp(10.0), 1E-5);
+    }
+
+    /**
+     * Test of cdf method, of class TDistribution.
+     */
+    @Test
+    public void testCdf() {
+        System.out.println("cdf");
+        TDistribution instance = new TDistribution(20);
+        instance.rand();
+        assertEquals(1.581891e-09, instance.cdf(-10.0), 1E-15);
+        assertEquals(0.02963277, instance.cdf(-2.0), 1E-7);
+        assertEquals(0.1646283, instance.cdf(-1.0), 1E-7);
+        assertEquals(0.5, instance.cdf(0.0), 1E-7);
+        assertEquals(0.8353717, instance.cdf(1.0), 1E-7);
+        assertEquals(0.9703672, instance.cdf(2.0), 1E-7);
+        assertEquals(1.0, instance.cdf(10.0), 1E-7);
+    }
+
+    /**
+     * Test of quantile method, of class TDistribution.
+     */
+    @Test
+    public void testQuantile() {
+        System.out.println("quantile");
+        TDistribution instance = new TDistribution(20);
+        instance.rand();
+        assertEquals(-3.551808, instance.quantile(0.001), 1E-6);
+        assertEquals(-2.527977, instance.quantile(0.01), 1E-6);
+        assertEquals(-1.325341, instance.quantile(0.1), 1E-6);
+        assertEquals(-0.8599644, instance.quantile(0.2), 1E-6);
+        assertEquals(0.0,      instance.quantile(0.5), 1E-6);
+        assertEquals(1.325341, instance.quantile(0.9), 1E-6);
+        assertEquals(2.527977, instance.quantile(0.99), 1E-6);
+        assertEquals(3.551808, instance.quantile(0.999), 1E-6);
+    }
+
+    /**
+     * Test that mean is undefined for nu=1 (Cauchy distribution).
+     */
+    @Test
+    public void testMeanUndefinedNu1() {
+        System.out.println("t-distribution mean undefined for nu=1");
+        TDistribution cauchy = new TDistribution(1);
+        assertThrows(UnsupportedOperationException.class, cauchy::mean);
+    }
+
+    /**
+     * Test that variance is infinite for nu=2.
+     */
+    @Test
+    public void testVarianceInfiniteNu2() {
+        System.out.println("t-distribution variance infinite for nu=2");
+        TDistribution t2 = new TDistribution(2);
+        assertEquals(Double.POSITIVE_INFINITY, t2.variance());
+    }
+
+    /**
+     * Test that variance is undefined for nu=1.
+     */
+    @Test
+    public void testVarianceUndefinedNu1() {
+        System.out.println("t-distribution variance undefined for nu=1");
+        TDistribution cauchy = new TDistribution(1);
+        assertThrows(UnsupportedOperationException.class, cauchy::variance);
+    }
+
+    /**
+     * Test the two-tailed cdf and quantile methods.
+     */
+    @Test
+    public void testTwoTailed() {
+        System.out.println("t-distribution two-tailed");
+        TDistribution instance = new TDistribution(20);
+        // cdf2tailed(x) = P(|T| <= x) = 1 - 2*(1-cdf(x))
+        double x = 2.086;
+        double expected = 1.0 - 2.0 * (1.0 - instance.cdf(x));
+        assertEquals(expected, instance.cdf2tailed(x), 1E-6);
+        // quantile2tailed is the inverse
+        double q = instance.quantile2tailed(0.05);
+        assertTrue(q > 0);
+        assertEquals(0.05, instance.cdf2tailed(q), 1E-5);
+    }
+
+    /**
+     * Test that rand() samples have mean ≈ 0 and variance ≈ nu/(nu-2) for nu > 2.
+     */
+    @Test
+    public void testRandMoments() {
+        System.out.println("t rand moments");
+        smile.math.MathEx.setSeed(19650218);
+        int nu = 10;
+        TDistribution d = new TDistribution(nu);
+        double[] samples = d.rand(10000);
+        double mean = smile.math.MathEx.mean(samples);
+        double var = smile.math.MathEx.var(samples);
+        assertEquals(0.0, mean, 0.05);
+        assertEquals((double) nu / (nu - 2), var, 0.15);
+    }
+}
+

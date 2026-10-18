@@ -1,0 +1,70 @@
+/*
+ * Copyright (c) 2010-2026 Haifeng Li. All rights reserved.
+ *
+ * SMILE is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * SMILE is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with SMILE. If not, see <https://www.gnu.org/licenses/>.
+ */
+import React, { useEffect } from 'react'
+import ProfileIcon from '../assets/profile.svg'
+import MessageParts from './MessageParts'
+import Timestamp from './Timestamp'
+import './Message.css'
+
+export default function IncomingMessage({
+    user,
+    parts,
+    text,
+    timestamp,
+    streaming = false,
+    toolCalls,
+    toolCallId,
+    role,
+}) {
+    const [avatar, setAvatar] = React.useState(ProfileIcon)
+
+    useEffect(() => {
+        if (user?.avatar && user.avatar.trim().length > 0) {
+            setAvatar(user.avatar)
+        }
+    }, [user])
+
+    return (
+        <div data-testid="incoming-message" className="incoming-wrapper">
+            <div className="text-wrapper">
+                <div className="incoming-header-container">
+                    <div className="picture-container">
+                        <img src={avatar} className="profile-picture"
+                            onError={() => setAvatar(ProfileIcon)}
+                        />
+                    </div>
+                    <div className="name">{user?.name}</div>
+
+                    <Timestamp date={timestamp}/>
+                </div>
+
+                <div className="incoming-message-container">
+                    <div className="incoming-background"/>
+                    <MessageParts
+                        parts={parts}
+                        text={text}
+                        downloadable
+                        streaming={streaming}
+                        toolCalls={toolCalls}
+                        toolCallId={toolCallId}
+                        role={role}
+                    />
+                </div>
+            </div>
+        </div>
+    )
+}

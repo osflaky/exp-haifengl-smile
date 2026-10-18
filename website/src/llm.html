@@ -1,0 +1,153 @@
+---
+layout: layout.njk
+permalink: "{{ page.filePathStem }}.html"
+title: SMILE - LLM
+---
+{% include "toc.njk" %}
+
+<div class="col-md-9 order-md-first">
+
+    <h1 id="llm-top" class="title">Large Language Models</h1>
+
+    <p>A large language model (LLM) is a computational model notable for its ability
+        to achieve general-purpose language generation and other NLP tasks such as
+        classification. Transformer, the state-of-the-art LLM architecture, is based on
+        the multi-head attention mechanism. Text is converted to numerical
+        representations called tokens, and each token is converted into a vector
+        via looking up from a word embedding table. At each layer, each token is
+        then contextualized within the scope of the context window with other
+        (unmasked) tokens via a parallel multi-head softmax-based attention mechanism
+        allowing the signal for key tokens to be amplified and less important tokens
+        to be diminished. GPTs (Generative pre-trained transformers) are based on
+        the decoder-only transformer architecture. Each generation of GPT models
+        is significantly more capable than the previous, due to increased model size
+        (number of trainable parameters) and larger training data.</p>
+
+    <h2 id="llama" class="title">Llama 3.1</h2>
+
+    <p>SMILE provides an inference implementation of
+        <a href="https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct">Llama 3.1</a>
+        from Meta AI. To build a model instance, call <code>Llama.build()</code> with the
+        Hugging Face checkpoint directory, the tokenizer model file path, maximum batch size,
+        maximum sequence length, and CUDA device id:</p>
+
+    <div class="code-playground glass" data-lang="java">
+  <div class="playground-toolbar">
+    <span class="lang-tab is-active">Java</span>
+    <span class="toolbar-spacer"></span>
+    <button type="button" class="btn btn-ghost btn-sm playground-copy">Copy</button>
+    {% include "components/playground-extra-actions.njk" %}
+  </div>
+  <pre class="playground-source language-java"><code class="language-java">
+import smile.llm.model.llama.Llama;
+import smile.llm.Message;
+
+var llama = Llama.build(
+    "model/Llama-3.1-8B-Instruct",
+    "model/Llama-3.1-8B-Instruct/original/tokenizer.model",
+    /*maxBatchSize=*/ 4,
+    /*maxSeqLen=*/    8192,
+    /*deviceId=*/     (byte) 0    // CUDA:0
+);
+          </code></pre>
+  <div class="playground-editor" hidden></div>
+</div>
+
+    <p>For a pretrained model, call <code>generate()</code> with a batch of prompts to
+        generate text. For fine-tuned chat models, call <code>chat()</code> to generate
+        conversation responses.</p>
+
+    <div class="code-playground glass" data-lang="java">
+  <div class="playground-toolbar">
+    <span class="lang-tab is-active">Java</span>
+    <span class="toolbar-spacer"></span>
+    <button type="button" class="btn btn-ghost btn-sm playground-copy">Copy</button>
+    {% include "components/playground-extra-actions.njk" %}
+  </div>
+  <pre class="playground-source language-java"><code class="language-java">
+var reply = llama.chat(
+    new Message[]{
+        Message.system("You are a helpful assistant."),
+        Message.user("Explain gradient descent in one paragraph.")
+    },
+    /*maxGenLen=*/ 256,
+    /*temperature=*/ 0.7,
+    /*topp=*/ 0.9,
+    /*logprobs=*/ false,
+    /*seed=*/ 0L,
+    /*listener=*/ null,
+    /*cancelRequested=*/ null
+);
+
+System.out.println(reply.content());
+          </code></pre>
+  <div class="playground-editor" hidden></div>
+</div>
+
+    <p>For streaming output, pass a <code>GenerationListener</code> that receives tokens
+       as they are generated. The <code>cancelRequested</code> supplier can signal
+       early termination.</p>
+
+    <h2 id="qwen" class="title">Qwen3</h2>
+
+    <p>SMILE also supports <a href="https://huggingface.co/Qwen/Qwen3.8-27B">Qwen3</a>
+        models, including the hybrid Qwen3.5 architecture (Gated DeltaNet + full attention).
+        Qwen checkpoints use a Hugging Face <code>tokenizer.json</code> instead of a
+        SentencePiece <code>tokenizer.model</code>, so <code>Qwen.build()</code> takes
+        only the checkpoint directory (the tokenizer is resolved automatically).</p>
+
+    <div class="code-playground glass" data-lang="java">
+  <div class="playground-toolbar">
+    <span class="lang-tab is-active">Java</span>
+    <span class="toolbar-spacer"></span>
+    <button type="button" class="btn btn-ghost btn-sm playground-copy">Copy</button>
+    {% include "components/playground-extra-actions.njk" %}
+  </div>
+  <pre class="playground-source language-java"><code class="language-java">
+import smile.llm.model.qwen.Qwen;
+import smile.llm.Message;
+
+var qwen = Qwen.build(
+    "model/Qwen3.8-27B",
+    /*maxBatchSize=*/ 4,
+    /*maxSeqLen=*/    8192,
+    /*deviceId=*/     (byte) 0    // CUDA:0
+);
+
+var reply = qwen.chat(
+    new Message[]{
+        Message.system("You are a helpful assistant."),
+        Message.user("What are the key differences between Java and Kotlin?")
+    },
+    /*maxGenLen=*/ 512,
+    /*temperature=*/ 0.7,
+    /*topp=*/ 0.9,
+    /*logprobs=*/ false,
+    /*seed=*/ 0L,
+    /*listener=*/ null,
+    /*cancelRequested=*/ null
+);
+
+System.out.println(reply.content());
+          </code></pre>
+  <div class="playground-editor" hidden></div>
+</div>
+
+    <p>For multi-GPU tensor parallelism, use the overloads that accept a
+       <code>ParallelConfig</code>. Native FP8 quantization
+       (e.g. <code>Qwen/Qwen3.8-27B-FP8</code>) is supported on Hopper+ GPUs (sm_90+).</p>
+
+    <h2 id="serving" class="title">Serving</h2>
+
+    <p>SMILE Serve is a production Quarkus inference server for classic ML, ONNX, and
+        OpenAI-compatible LLM chat — with a bundled React web UI. See the
+        <a href="serve.html">SMILE Serve</a> page for Docker quick start, configuration,
+        OpenAI-compatible chat completions (including Qwen3+ tool calling), and the web UI.</p>
+
+    <div id="btnv">
+        <span class="btn-arrow-left">&larr; &nbsp;</span>
+        <a class="btn-prev-text" href="manifold.html" title="Previous Section: Manifold Learning"><span>Manifold Learning</span></a>
+        <a class="btn-next-text" href="serve.html" title="Next Section: SMILE Serve"><span>SMILE Serve</span></a>
+        <span class="btn-arrow-right">&nbsp;&rarr;</span>
+    </div>
+</div>

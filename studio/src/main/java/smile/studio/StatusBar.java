@@ -1,0 +1,105 @@
+/*
+ * Copyright (c) 2010-2026 Haifeng Li. All rights reserved.
+ *
+ * SMILE Studio is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * SMILE Studio is distributed in the hope that it will be useful,
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with SMILE. If not, see <https://www.gnu.org/licenses/>.
+ */
+package smile.studio;
+
+import javax.swing.*;
+import javax.swing.border.EmptyBorder;
+import java.awt.*;
+import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryMXBean;
+import java.text.MessageFormat;
+import java.util.Locale;
+import java.util.ResourceBundle;
+import com.sun.management.OperatingSystemMXBean;
+
+/**
+ * A status bar poses an information area typically found at the window's bottom.
+ *
+ * @author Haifeng Li
+ */
+public class StatusBar extends JPanel {
+    private static final ResourceBundle bundle = ResourceBundle.getBundle(StatusBar.class.getName(), Locale.getDefault());
+    private static final String READY = bundle.getString("Ready");
+    /** Status message. */
+    private final JLabel status = new JLabel(READY);
+    /** Status message. */
+    private final JLabel system = new JLabel();
+    /** OS's MXBean */
+    private final OperatingSystemMXBean os = (OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean();
+    /** Memory's MXBean */
+    private final MemoryMXBean memory = ManagementFactory.getMemoryMXBean();
+    /** The timer to reset status message. */
+    private final Timer timer = new Timer(60000, e -> status.setText(READY));
+
+    /**
+     * Constructor.
+     */
+    public StatusBar() {
+        super(new BorderLayout());
+
+        // One-time execution.
+        // Timer will be restarted every time a new status message is set.
+        timer.setRepeats(false);
+
+        // Left-aligned status message
+        status.setHorizontalAlignment(SwingConstants.LEFT);
+        // Add some padding to the left side
+        status.setBorder(new EmptyBorder(0, 8, 0, 0));
+        add(status, BorderLayout.WEST);
+
+        // Right-aligned system info
+        system.setHorizontalAlignment(SwingConstants.RIGHT);
+        // Add some padding to the right side
+        system.setBorder(new EmptyBorder(0, 0, 0, 8));
+        add(system, BorderLayout.EAST);
+
+        // Timer to refresh CPU/Memory usage
+        var refresher = createRefresher();
+        refresher.setInitialDelay(5000);
+        refresher.start();
+    }
+
+    /**
+     * Creates a timer that updates the system information every second.
+     * @return the timer.
+     */
+    private Timer createRefresher() {
+        return new Timer(1000, e -> {
+            double cpuLoad = os.getCpuLoad();
+            double usedHeap = memory.getHeapMemoryUsage().getUsed() / (1024 * 1024.0);
+            String unit = "MB";
+            if (usedHeap >= 1024) {
+                usedHeap /= 1024;
+                unit = "GB";
+            }
+            String heapStr = String.format("%.1f %s", usedHeap, unit);
+            // getCpuLoad() returns -1.0 when the value is not available.
+            String cpuStr = cpuLoad < 0 ? "N/A" : (int) (cpuLoad * 100) + "%";
+            String info = MessageFormat.format(bundle.getString("SystemInfo"), heapStr, cpuStr);
+            system.setText(info);
+        });
+    }
+
+    /**
+     * Updates the status message.
+     * @param message the status message.
+     */
+    public void setStatus(String message) {
+        status.setText(message);
+        timer.restart();
+    }
+}

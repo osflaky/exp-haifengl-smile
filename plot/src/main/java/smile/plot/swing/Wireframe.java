@@ -1,0 +1,82 @@
+/*
+ * Copyright (c) 2010-2026 Haifeng Li. All rights reserved.
+ *
+ * SMILE is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * SMILE is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with SMILE. If not, see <https://www.gnu.org/licenses/>.
+ */
+package smile.plot.swing;
+
+import java.awt.Color;
+import smile.math.MathEx;
+
+/**
+ * A wire frame model specifies each edge of the physical object where two
+ * mathematically continuous smooth surfaces meet, or by connecting an
+ * object's constituent vertices using straight lines or curves.
+ *
+ * @author Haifeng Li
+ */
+public class Wireframe extends Plot {
+
+    /**
+     * The coordinates of vertices in the wire frame.
+     */
+    final double[][] vertices;
+    /**
+     * The vertex indices of two end points of each edge in the wire frame.
+     */
+    final int[][] edges;
+
+    /**
+     * Constructor.
+     * @param vertices an n-by-2 or n-by-3 array which are coordinates of n vertices.
+     * @param edges an m-by-2 array of which each row is the vertex indices of two
+     * end points of each edge.
+     * @param color the color of plot.
+     */
+    public Wireframe(double[][] vertices, int[][] edges, Color color) {
+        super(color);
+        this.vertices = vertices;
+        this.edges = edges;
+    }
+
+    @Override
+    public double[] getLowerBound() {
+        return MathEx.colMin(vertices);
+    }
+
+    @Override
+    public double[] getUpperBound() {
+        return MathEx.colMax(vertices);
+    }
+
+    @Override
+    public void paint(Renderer g) {
+        g.setColor(color);
+
+        for (int[] edge : edges) {
+            g.drawLine(vertices[edge[0]], vertices[edge[1]]);
+        }
+    }
+
+    /**
+     * Creates a wireframe plot.
+     * @param vertices an n-by-2 or n-by-3 array which are coordinates of n vertices.
+     * @param edges an m-by-2 array of which each row is the vertex indices of two
+     * end points of each edge.
+     * @return the plot.
+     */
+    public static Wireframe of(double[][] vertices, int[][] edges) {
+        return new Wireframe(vertices, edges, Color.BLACK);
+    }
+}

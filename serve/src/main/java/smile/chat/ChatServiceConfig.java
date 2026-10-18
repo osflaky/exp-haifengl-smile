@@ -1,0 +1,246 @@
+/*
+ * Copyright (c) 2010-2026 Haifeng Li. All rights reserved.
+ *
+ * SMILE Serve is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * SMILE Serve is distributed in the hope that it will be useful,
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with SMILE. If not, see <https://www.gnu.org/licenses/>.
+ */
+package smile.chat;
+
+import java.util.Optional;
+import io.smallrye.config.ConfigMapping;
+import io.smallrye.config.WithDefault;
+
+/**
+ * Configuration for the LLM chat completion service.
+ * All properties are prefixed with {@code smile.chat}.
+ *
+ * <p>The SentencePiece tokenizer is resolved next to the checkpoint
+ * ({@code original/tokenizer.model}, {@code tokenizer.model}, or
+ * {@code tokenizer.json}); there is no
+ * separate tokenizer path property.
+ *
+ * @author Haifeng Li
+ */
+@ConfigMapping(prefix = "smile.chat")
+public interface ChatServiceConfig {
+    /**
+     * Local HF-layout checkpoint directory, or a Hugging Face repository id
+     * ({@code owner/name}).
+     */
+    String model();
+
+    /**
+     * Maximum sequence length in tokens (prompt + output), analogous to vLLM
+     * {@code --max-model-len} / SGLang {@code --context-length}.
+     *
+     * <p>{@code <= 0} (the default) means auto: at model load, replace with
+     * {@code max_position_embeddings} from the model {@code config.json} before
+     * any request is served. {@link smile.llm.LanguageModel#maxSeqLen()} always
+     * returns that positive resolved value. Set an explicit positive value to
+     * cap context below the model default (recommended for large-window models
+     * such as Qwen3.5).
+     */
+    @WithDefault("0")
+    int maxSeqLen();
+
+    /**
+     * Maximum in-flight chat generations for {@link smile.llm.engine.InferenceEngine}
+     * (Fluid Injection cap). Each HTTP chat completion is one request; this is
+     * not a static multi-prompt batch size. Defaults to {@code 1}.
+     */
+    @WithDefault("1")
+    int maxBatchSize();
+
+    /**
+     * Max requests in one GPU {@code decodeStep}. Defaults to {@code 0} meaning
+     * the same as {@link #maxBatchSize()}. Set lower to cap decode batching
+     * independently of Fluid Injection admission.
+     */
+    @WithDefault("0")
+    int maxDecodeBatch();
+
+    /**
+     * Max prompt tokens prefilled per scheduler tick (chunked prefill budget).
+     * Long prompts yield to decode so short requests are not stalled.
+     */
+    @WithDefault("2048")
+    int prefillTokenBudget();
+
+    /**
+     * Max milliseconds a job may wait for KV admission before the future fails.
+     * {@code 0} waits indefinitely (until Instant Eviction frees capacity).
+     */
+    @WithDefault("120000")
+    long admissionTimeoutMs();
+
+    /**
+     * When the engine is idle ({@code inFlight == 0}) and the wait queue is
+     * non-empty, delay the first admission by up to this many milliseconds so a
+     * parallel client burst can form a uniform decode cohort. Admission proceeds
+     * early once {@code queued >= maxBatchSize}. {@code 0} (default) disables
+     * coalesce — preferred for interactive latency; set e.g. {@code 50} for
+     * parallel load-test waves.
+     *
+     * <p>Property: {@code smile.chat.admit-coalesce-ms}.
+     */
+    @WithDefault("0")
+    long admitCoalesceMs();
+
+    /**
+     * SGLang {@code --mem-fraction-static}: fraction {@code y} of <em>total</em>
+     * GPU memory reserved for the static region (model weights, DeltaNet state
+     * pools, and KV cache). The remainder {@code (1 − y) × total} stays free for
+     * dynamic activations. KV slots are {@code staticBudget − used}, then capped
+     * at {@code maxBatchSize × maxSeqLen}. Defaults to {@code 0.85}.
+     *
+     * <p>The KV pool is allocated once and never grows per request. When free
+     * slots are insufficient for the requested prompt+generation length,
+     * generation stops early and returns partial output with
+     * {@code finish_reason=length}.
+     */
+    @WithDefault("0.85")
+    double memFractionStatic();
+
+    /**
+     * CUDA device index or comma-separated TP device list
+     * (e.g. {@code 0} or {@code 0,7}). A single value is the sole / base
+     * device; multiple values define the tensor-parallel ranks in order.
+     * Defaults to {@code 0}.
+     */
+    @WithDefault("0")
+    String devices();
+
+    /**
+     * Tensor-parallel size. When greater than 1 and {@link #devices()} has a
+     * single entry {@code d}, ranks use consecutive devices
+     * {@code d .. d+tensorParallelSize-1}. When {@link #devices()} lists
+     * multiple indices, that list length must equal this size (or this may
+     * stay at {@code 1} and the list length defines the TP world size).
+     * Defaults to {@code 1}.
+     */
+    @WithDefault("1")
+    int tensorParallelSize();
+
+    /**
+     * Pipeline-parallel size. Must remain {@code 1} until multi-node PP lands.
+     * Defaults to {@code 1}.
+     */
+    @WithDefault("1")
+    int pipelineParallelSize();
+
+    /**
+     * Concurrent safetensors shard download / loader threads. Each download
+     * worker fetches one shard; each loader worker reads one shard onto CPU
+     * then fans weights out to TP ranks (peak host RAM during load scales
+     * roughly as {@code threads × shard size}). {@code 0} (default) means auto:
+     * {@code min(8, availableProcessors)}, then capped by the number of shard
+     * files.
+     */
+    @WithDefault("0")
+    int modelLoaderThreads();
+
+    /**
+     * Attention kernel backend: {@code flashinfer} (paged CSR attention) or
+     * {@code torch_native} (LibTorch SDPA). Defaults to {@code flashinfer};
+     * if FlashInfer is unavailable in {@code libsmile_torch}, the service
+     * falls back to {@code torch_native} at startup.
+     */
+    @WithDefault("flashinfer")
+    String attentionBackend();
+
+    /**
+     * Explicit FlashInfer AOT / jit-cache directory. Unset means auto-resolve
+     * (bundled {@code /opt/flashinfer/aot}, env, then cache-dir).
+     */
+    Optional<String> flashinferAotDir();
+
+    /**
+     * Directory for downloaded / extracted {@code flashinfer-jit-cache} modules.
+     * Unset uses {@code ~/.cache/smile/flashinfer}.
+     */
+    Optional<String> flashinferCacheDir();
+
+    /**
+     * When true and no AOT dir is present, download a pinned jit-cache wheel
+     * into {@link #flashinferCacheDir()} (download-only; no nvcc).
+     */
+    @WithDefault("false")
+    boolean flashinferDownload();
+
+    /**
+     * CUDA tag for jit-cache wheels. FlashInfer 0.6.6 publishes
+     * {@code cu128}/{@code cu129}/{@code cu130} only (no {@code cu132}); LibTorch
+     * may still be built against CUDA 13.2.
+     */
+    @WithDefault("cu130")
+    String flashinferCudaTag();
+
+    /**
+     * When FlashInfer cannot be installed, fall back to {@code torch_native}.
+     */
+    @WithDefault("true")
+    boolean flashinferAllowTorchFallback();
+
+    /**
+     * Weight quantization GEMM backend: {@code auto} (detect from checkpoint + GPU),
+     * {@code dense}, {@code fp8}, {@code nvfp4}, or {@code marlin}.
+     *
+     * <p>Property: {@code smile.chat.quantization}. {@code auto} selects FP8/NVFP4
+     * on Hopper/Blackwell for native checkpoints, Marlin on Ampere/Ada for GPTQ/AWQ,
+     * and dense otherwise. GPTQ/AWQ on Hopper+ fails fast (no silent Marlin).
+     */
+    @WithDefault("auto")
+    String quantization();
+
+    /**
+     * When {@code true}, parse Qwen3 XML tool calls from assistant output when
+     * the request includes {@code tools}.
+     */
+    @WithDefault("true")
+    boolean toolCallingEnabled();
+
+    /**
+     * Enable native MTP speculative decoding for Qwen3.5/3.8 when MTP weights
+     * are present. Off by default (OpenAI-compatible path unchanged).
+     *
+     * <p>Property: {@code smile.chat.speculative}.
+     */
+    @WithDefault("false")
+    boolean speculative();
+
+    /**
+     * Draft depth for MTP speculation. {@code 0} uses the model default
+     * (typically 2–3 from HF config). Capped at 7.
+     *
+     * <p>Property: {@code smile.chat.speculative-tokens}.
+     */
+    @WithDefault("0")
+    int speculativeTokens();
+
+    /**
+     * Max concurrently-decoding requests at which MTP speculation still runs.
+     * Native speculation drafts/verifies one request at a time (eager, no
+     * decode CUDA graph), so {@code N} concurrent speculative requests cost
+     * {@code N} sequential forwards that tick versus one batched forward for
+     * plain decode. Above this limit, speculative-flagged requests fall back
+     * to plain batched decode for that tick so peak throughput under load
+     * cannot regress below the non-speculative baseline. Default {@code 1}
+     * (speculation only when there is a single decoding stream); raise this
+     * only after confirming with your own throughput measurements that
+     * speculation still wins at higher concurrency on your hardware.
+     *
+     * <p>Property: {@code smile.chat.speculative-max-concurrency}.
+     */
+    @WithDefault("1")
+    int speculativeMaxConcurrency();
+}

@@ -1,0 +1,226 @@
+/*
+ * Copyright (c) 2010-2026 Haifeng Li. All rights reserved.
+ *
+ * SMILE is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * SMILE is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with SMILE. If not, see <https://www.gnu.org/licenses/>.
+ */
+package smile.stat.distribution;
+
+import smile.math.MathEx;
+import org.junit.jupiter.api.*;
+import static org.junit.jupiter.api.Assertions.*;
+
+/**
+ *
+ * @author Haifeng Li
+ */
+public class BinomialDistributionTest {
+
+    public BinomialDistributionTest() {
+    }
+
+    @BeforeAll
+    public static void setUpClass() throws Exception {
+    }
+
+    @AfterAll
+    public static void tearDownClass() throws Exception {
+    }
+
+    @BeforeEach
+    public void setUp() {
+    }
+
+    @AfterEach
+    public void tearDown() {
+    }
+
+    /**
+     * Test of npara method, of class BinomialDistribution.
+     */
+    @Test
+    public void testNpara() {
+        System.out.println("npara");
+        BinomialDistribution instance = new BinomialDistribution(100, 0.3);
+        instance.rand();
+        assertEquals(2, instance.length());
+    }
+
+    /**
+     * Test of mean method, of class BinomialDistribution.
+     */
+    @Test
+    public void testMean() {
+        System.out.println("mean");
+        BinomialDistribution instance = new BinomialDistribution(100, 0.3);
+        instance.rand();
+        assertEquals(30.0, instance.mean(), 1E-7);
+    }
+
+    /**
+     * Test of variance method, of class BinomialDistribution.
+     */
+    @Test
+    public void testVariance() {
+        System.out.println("variance");
+        BinomialDistribution instance = new BinomialDistribution(100, 0.3);
+        instance.rand();
+        assertEquals(21.0, instance.variance(), 1E-7);
+    }
+
+    /**
+     * Test of sd method, of class BinomialDistribution.
+     */
+    @Test
+    public void testSd() {
+        System.out.println("sd");
+        BinomialDistribution instance = new BinomialDistribution(100, 0.3);
+        instance.rand();
+        assertEquals(Math.sqrt(21.0), instance.sd(), 1E-7);
+    }
+
+    /**
+     * Test of entropy method, of class BinomialDistribution.
+     */
+    @Test
+    public void testEntropy() {
+        System.out.println("entropy");
+        BinomialDistribution instance = new BinomialDistribution(100, 0.3);
+        instance.rand();
+        assertEquals( 2.9412, instance.entropy(), 1E-4);
+    }
+
+    /**
+     * Test of p method, of class BinomialDistribution.
+     */
+    @Test
+    public void testP() {
+        System.out.println("p");
+        BinomialDistribution instance = new BinomialDistribution(100, 0.3);
+        instance.rand();
+        assertEquals(3.234477e-16, instance.p(0), 1E-20);
+        assertEquals(1.386204e-14, instance.p(1), 1E-18);
+        assertEquals(1.170418e-06, instance.p(10), 1E-10);
+        assertEquals(0.007575645, instance.p(20), 1E-7);
+        assertEquals(0.08678386, instance.p(30), 1E-7);
+        assertEquals(5.153775e-53, instance.p(100), 1E-58);
+    }
+
+    /**
+     * Test of logP method, of class BinomialDistribution.
+     */
+    @Test
+    public void testLogP() {
+        System.out.println("logP");
+        BinomialDistribution instance = new BinomialDistribution(100, 0.3);
+        instance.rand();
+        assertEquals(Math.log(3.234477e-16), instance.logp(0), 1E-5);
+        assertEquals(Math.log(1.386204e-14), instance.logp(1), 1E-5);
+        assertEquals(Math.log(1.170418e-06), instance.logp(10), 1E-5);
+        assertEquals(Math.log(0.007575645), instance.logp(20), 1E-5);
+        assertEquals(Math.log(0.08678386), instance.logp(30), 1E-5);
+        assertEquals(Math.log(5.153775e-53), instance.logp(100), 1E-5);
+    }
+
+    /**
+     * Test of cdf method, of class BinomialDistribution.
+     */
+    @Test
+    public void testCdf() {
+        System.out.println("cdf");
+        BinomialDistribution instance = new BinomialDistribution(100, 0.3);
+        instance.rand();
+        assertEquals(3.234477e-16, instance.cdf(0), 1E-20);
+        assertEquals(1.418549e-14, instance.cdf(1), 1E-18);
+        assertEquals(1.555566e-06, instance.cdf(10), 1E-10);
+        assertEquals(0.01646285, instance.cdf(20), 1E-7);
+        assertEquals(0.5491236, instance.cdf(30), 1E-7);
+        assertEquals(1.0, instance.cdf(100), 1E-7);
+    }
+
+    /**
+     * Test of quantile method, of class BinomialDistribution.
+     */
+    @Test
+    public void testQuantile() {
+        System.out.println("quantile");
+        BinomialDistribution instance = new BinomialDistribution(100, 0.3);
+        instance.rand();
+        assertEquals(0, instance.quantile(0), 1E-7);
+        assertEquals(0, instance.quantile(0.00000000000000001), 1E-7);
+        assertEquals(17, instance.quantile(0.001), 1E-7);
+        assertEquals(20, instance.quantile(0.01), 1E-7);
+        assertEquals(24, instance.quantile(0.1), 1E-7);
+        assertEquals(26, instance.quantile(0.2), 1E-7);
+        assertEquals(30, instance.quantile(0.5), 1E-7);
+        assertEquals(36, instance.quantile(0.9), 1E-7);
+        assertEquals(100, instance.quantile(1.0), 1E-7);
+    }
+
+    @Test
+    public void testRand() {
+        System.out.println("rand");
+        MathEx.setSeed(19650218);
+        BinomialDistribution instance = new BinomialDistribution(1000, 0.99);
+        assertEquals(987, instance.rand(), 1E-7);
+    }
+
+    @Test
+    public void testRandOverflow() {
+        System.out.println("rand overflow");
+        MathEx.setSeed(19650218);
+        BinomialDistribution instance = new BinomialDistribution(1000, 0.999000999000999);
+        assertEquals(999, instance.rand(), 1E-7);
+    }
+
+    /**
+     * Test edge case p=0: all outcomes are 0.
+     */
+    @Test
+    public void testPZeroEdge() {
+        System.out.println("Binomial p=0 edge");
+        BinomialDistribution d = new BinomialDistribution(10, 0.0);
+        assertEquals(1.0, d.p(0),  1E-10);
+        assertEquals(0.0, d.p(1),  1E-10);
+        assertEquals(0.0, d.logp(1) == Double.NEGATIVE_INFINITY ? 0.0 : 1.0, 1E-10);
+        assertEquals(0.0, d.logp(0), 1E-10); // log(1) = 0
+    }
+
+    /**
+     * Test edge case p=1: all outcomes are n.
+     */
+    @Test
+    public void testPOneEdge() {
+        System.out.println("Binomial p=1 edge");
+        BinomialDistribution d = new BinomialDistribution(10, 1.0);
+        assertEquals(0.0, d.p(0),  1E-10);
+        assertEquals(1.0, d.p(10), 1E-10);
+        assertTrue(Double.isInfinite(d.logp(0)));
+        assertEquals(0.0, d.logp(10), 1E-10); // log(1) = 0
+    }
+
+    /**
+     * Test large n to verify numerical stability of p() via exp(logp).
+     */
+    @Test
+    public void testLargeN() {
+        System.out.println("Binomial large n");
+        BinomialDistribution d = new BinomialDistribution(10000, 0.5);
+        // p(k) should be well-defined around mode (5000)
+        double pMode = d.p(5000);
+        assertTrue(pMode > 0 && pMode < 1);
+        // log p should be finite
+        assertTrue(Double.isFinite(d.logp(5000)));
+    }
+}
+

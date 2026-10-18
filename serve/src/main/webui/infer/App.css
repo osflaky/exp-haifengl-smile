@@ -1,0 +1,215 @@
+.app {
+  display: flex;
+  height: calc(100vh - 72px); /* leave room for site header on /infer */
+  width: 100%;
+  font-family: Arial, sans-serif;
+  overflow: hidden;
+}
+
+.infer-model-sidebar.collapsible-panel-host--left {
+  background: #1e1e2f;
+  color: white;
+}
+
+.infer-model-sidebar .collapsible-panel__toggle {
+  background: #2a2a3d;
+  color: rgba(255, 255, 255, 0.8);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.infer-model-sidebar .collapsible-panel__toggle:hover {
+  background: #363650;
+}
+
+.sidebar {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  background: transparent;
+  color: inherit;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.sidebar h2 {
+  margin-top: 0;
+}
+
+.sidebar ul {
+  list-style: none;
+  padding: 0;
+}
+
+.sidebar-group {
+  margin: 16px 0 8px;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #9aa0b5;
+  font-weight: 600;
+}
+
+.sidebar-empty {
+  color: #9aa0b5;
+  font-size: 14px;
+}
+
+.sidebar li {
+  padding: 10px;
+  cursor: pointer;
+  border-radius: 4px;
+  margin-bottom: 6px;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sidebar li .model-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.badge {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 2px 6px;
+  border-radius: 3px;
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.badge-smile {
+  background: #3d6b4f;
+  color: #d8f5e4;
+}
+
+.badge-onnx {
+  background: #4a5a8a;
+  color: #dce4ff;
+}
+
+.badge-chat {
+  background: #6b4a3d;
+  color: #ffe8dc;
+}
+
+.sidebar li:hover {
+  background: #2e2e4f;
+}
+
+.sidebar li.active {
+  background: #3e3e6f;
+}
+
+.onnx-form .model-meta h2 {
+  margin: 0 0 4px;
+}
+
+.onnx-form .muted,
+.hint {
+  color: #666;
+  font-size: 14px;
+}
+
+.onnx-form .mode-toggle {
+  margin: 12px 0;
+}
+
+.onnx-form .form-error {
+  color: #b00020;
+}
+
+.image-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 480px;
+}
+
+.file-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.image-preview img {
+  max-width: 320px;
+  max-height: 320px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.content {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  padding: 24px;
+  background: white;
+  color: black;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Chat fills the pane; no outer padding so the transcript can scroll. */
+.content-chat {
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* One keep-alive panel per visited model; inactive ones stay mounted. */
+.panel-session {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-session[hidden] {
+  display: none !important;
+}
+
+.toast {
+  text-align: center;
+  font-size: 20px;
+}
+
+/* Basic styling for the dialog box */
+dialog {
+  background-color: #1e1e2f;
+  padding: 10px 16px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px lightblue;
+}
+
+/* Styling the overlay that appears behind the modal */
+dialog::backdrop {
+  background-color: rgba(0, 0, 0, 0.7);
+  /* Add an animation to the backdrop */
+  animation: backdrop-fadein 0.3s forwards;
+}
+
+@keyframes backdrop-fadein {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.json-container pre {
+  outline: 1px solid #ccc;
+
+  background-color: #f5f5f5;
+  color: #333;
+  overflow: auto; /* Adds scrollbars if data is too wide */
+}

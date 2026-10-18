@@ -1,0 +1,95 @@
+.smile
+log
+
+# Class and package files
+*.class
+*.jar
+*.war
+*.ear
+
+# JVM crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
+hs_err_pid*
+
+# Test data
+/data
+/model
+**/*.db
+
+# Native library
+/deep/libtorch
+
+# Clojure
+.nrepl-port
+.lein-repl-*
+clojure/pom.xml*
+clojure/.lein-failures
+
+# Node.js
+node_modules
+
+# PyTorch checkpoints
+*.pt
+
+# Jupyter
+.ipynb_checkpoints
+
+# macOS
+.DS_Store
+
+# Generated
+/doc
+/website/_site/
+/serve/src/main/resources/META-INF/resources/
+/serve/src/main/webui/dist/
+
+# SBT
+.bsp
+**/target
+
+# Gradle
+.gradle/
+build/
+
+# Eclipse
+.project
+.classpath
+.settings/
+.cache-main
+.cache-tests
+bin/
+
+# IntelliJ
+.idea
+*.ipr
+*.iml
+*.iws
+
+# NetBeans
+nbproject
+nb-configuration.xml
+
+# Visual Studio Code
+.vscode
+.factorypath
+
+# Vim
+*.swp
+*.swo
+
+# patch
+*.orig
+*.rej
+
+# Local environment
+.env
+
+# Python virtual environment
+venv
+
+# Plugin directory
+/.quarkus/cli/plugins/
+
+# TLS Certificates
+*.cer
+*.key
+.certs/

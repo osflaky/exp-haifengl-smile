@@ -1,0 +1,251 @@
+/*
+ * Copyright (c) 2010-2026 Haifeng Li. All rights reserved.
+ *
+ * SMILE is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * SMILE is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with SMILE. If not, see <https://www.gnu.org/licenses/>.
+ */
+package smile.stat.distribution;
+
+import java.io.Serial;
+import java.util.Arrays;
+import smile.math.MathEx;
+
+/**
+ * Kernel density estimation is a non-parametric way of estimating the
+ * probability density function of a random variable. Kernel density estimation
+ * is a fundamental data smoothing problem where inferences about the population
+ * are made, based on a finite data sample. It is also known as the
+ * Parzen window method.
+ * 
+ * @author Haifeng Li
+ */
+public class KernelDensity implements Distribution {
+    @Serial
+    private static final long serialVersionUID = 2L;
+
+    /**
+     * The samples to estimate the density function.
+     */
+    private final double[] x;
+    /**
+     * The kernel -- a symmetric but not necessarily positive function that
+     * integrates to one. Here we just use Gaussian density function.
+     */
+    private final GaussianDistribution gaussian;
+    /**
+     * {@code h > 0} is a smoothing parameter called the bandwidth.
+     */
+    private final double h;
+    /**
+     * The mean value.
+     */
+    private final double mean;
+    /**
+     * The standard deviation.
+     */
+    private final double sd;
+    /**
+     * The variance.
+     */
+    private final double variance;
+
+    /**
+     * Constructor. The bandwidth of kernel will be estimated by the rule of thumb.
+     * @param x the samples to estimate the density function.
+     */
+    public KernelDensity(double[] x) {
+        this.x = x;
+        this.mean = MathEx.mean(x);
+        this.variance = MathEx.var(x);
+        this.sd = Math.sqrt(variance);
+        if (sd == 0.0) {
+            throw new IllegalArgumentException("Samples has no variance.");
+        }
+
+        Arrays.sort(x);
+
+        int n = x.length;
+        double iqr = x[n*3/4] - x[n/4];
+        // safeguard iqr == 0
+        double spread = iqr > 0 ? Math.min(sd, iqr/1.34) : sd;
+        h = 1.06 * spread * Math.pow(x.length, -0.2);
+        gaussian = new GaussianDistribution(0, h);
+    }
+
+    /**
+     * Constructor.
+     * @param x the samples to estimate the density function.
+     * @param h a bandwidth parameter for smoothing.
+     */
+    public KernelDensity(double[] x, double h) {
+        if (h <= 0) {
+            throw new IllegalArgumentException("Invalid bandwidth: " + h);
+        }
+
+        this.x = x;
+        this.h = h;
+        this.mean = MathEx.mean(x);
+        this.variance = MathEx.var(x);
+        this.sd = Math.sqrt(variance);
+        gaussian = new GaussianDistribution(0, h);
+
+        Arrays.sort(x);
+    }
+
+    /**
+     * Returns the bandwidth of kernel.
+     * @return the bandwidth of kernel
+     */
+    public double bandwidth() {
+        return h;
+    }
+
+    @Override
+    public int length() {
+        return 0;
+    }
+
+    @Override
+    public double mean() {
+        return mean;
+    }
+
+    @Override
+    public double variance() {
+        return variance;
+    }
+
+    @Override
+    public double sd() {
+        return sd;
+    }
+
+    /**
+     * Shannon's entropy. Not supported.
+     */
+    @Override
+    public double entropy() {
+        throw new UnsupportedOperationException("KernelDensity does not support entropy().");
+    }
+
+    /**
+     * Generates a random sample using the "smoothed bootstrap" approach:
+     * pick a random data point and perturb it by the kernel (Gaussian noise).
+     * @return a random number.
+     */
+    @Override
+    public double rand() {
+        int i = MathEx.randomInt(x.length);
+        return x[i] + gaussian.rand();
+    }
+
+    @Override
+    public double p(double x) {
+        int start = Arrays.binarySearch(this.x, x-5*h);
+        if (start < 0) {
+            start = -start - 1;
+        }
+
+        int end = Arrays.binarySearch(this.x, x+5*h);
+        if (end < 0) {
+            end = -end - 1;
+        }
+
+        double p = 0.0;
+        for (int i = start; i < end; i++) {
+            p += gaussian.p(this.x[i] - x);
+        }
+
+        return p / this.x.length;
+    }
+
+    @Override
+    public double logp(double x) {
+        // Use log-sum-exp over the active window for numerical stability
+        int start = Arrays.binarySearch(this.x, x - 5 * h);
+        if (start < 0) start = -start - 1;
+        int end = Arrays.binarySearch(this.x, x + 5 * h);
+        if (end < 0) end = -end - 1;
+
+        if (start >= end) return Double.NEGATIVE_INFINITY;
+
+        double maxLog = Double.NEGATIVE_INFINITY;
+        for (int i = start; i < end; i++) {
+            double lp = gaussian.logp(this.x[i] - x);
+            if (lp > maxLog) maxLog = lp;
+        }
+
+        double sumExp = 0.0;
+        for (int i = start; i < end; i++) {
+            sumExp += Math.exp(gaussian.logp(this.x[i] - x) - maxLog);
+        }
+
+        return maxLog + Math.log(sumExp) - Math.log(this.x.length);
+    }
+
+    /**
+     * Cumulative distribution function estimated as the average of
+     * individual kernel CDFs over the sample points.
+     * @param x a real number.
+     * @return the estimated CDF value.
+     */
+    @Override
+    public double cdf(double x) {
+        double sum = 0.0;
+        for (double xi : this.x) {
+            sum += gaussian.cdf(x - xi);
+        }
+        return sum / this.x.length;
+    }
+
+    /**
+     * Inverse of CDF by bisection numeric root finding.
+     * @param p the probability.
+     * @return the quantile.
+     */
+    @Override
+    public double quantile(double p) {
+        if (p < 0.0 || p > 1.0) {
+            throw new IllegalArgumentException("Invalid p: " + p);
+        }
+        // Search range based on sample range plus several bandwidths
+        double xmin = this.x[0] - 5 * h;
+        double xmax = this.x[this.x.length - 1] + 5 * h;
+        return quantile(p, xmin, xmax);
+    }
+
+    /**
+     * The log likelihood of the samples.
+     * @param x a set of samples.
+     * @return the log likelihood.
+     */
+    @Override
+    public double logLikelihood(double[] x) {
+        double L = 0.0;
+        for (double xi : x) {
+            double lp = logp(xi);
+            if (Double.isFinite(lp)) L += lp;
+        }
+        return L;
+    }
+
+    /**
+     * The likelihood of the samples.
+     * @param x a set of samples.
+     * @return the likelihood.
+     */
+    @Override
+    public double likelihood(double[] x) {
+        return Math.exp(logLikelihood(x));
+    }
+}

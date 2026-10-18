@@ -1,0 +1,54 @@
+plugins {
+    id("buildlogic.java-common-conventions")
+    id("io.quarkus")
+    id("jacoco-report-aggregation")
+}
+
+val quarkusPlatformGroupId = extra["quarkusPlatformGroupId"] as String
+val quarkusPlatformArtifactId = extra["quarkusPlatformArtifactId"] as String
+val quarkusPlatformVersion = extra["quarkusPlatformVersion"] as String
+
+dependencies {
+    implementation(project(":core"))
+    implementation(project(":deep"))
+    implementation(enforcedPlatform("${quarkusPlatformGroupId}:${quarkusPlatformArtifactId}:${quarkusPlatformVersion}"))
+    implementation("io.quarkus:quarkus-rest")
+    implementation("io.quarkus:quarkus-rest-jackson")
+    implementation("io.quarkus:quarkus-arc")
+    implementation("org.jboss.slf4j:slf4j-jboss-logmanager")
+    implementation("io.quarkus:quarkus-hibernate-orm-panache")
+    //implementation("io.quarkus:quarkus-jdbc-postgresql")
+    implementation("io.quarkus:quarkus-jdbc-h2")
+    implementation("io.quarkiverse.quinoa:quarkus-quinoa:2.9.0")
+    implementation(platform("software.amazon.awssdk:bom:2.54.17"))
+    implementation("software.amazon.awssdk:s3")
+    testImplementation("io.quarkus:quarkus-junit5")
+    testImplementation("io.quarkus:quarkus-test-h2")
+    testImplementation("io.rest-assured:rest-assured:6.0.1")
+
+    // JaCoCo aggregated report
+    jacocoAggregation(project(":base"))
+    jacocoAggregation(project(":core"))
+    jacocoAggregation(project(":deep"))
+}
+
+tasks.withType<Test> {
+    systemProperty("java.util.logging.manager", "org.jboss.logmanager.LogManager")
+}
+
+tasks.quarkusDev {
+    jvmArgs = listOf(
+        "--add-opens", "java.base/java.lang=ALL-UNNAMED",
+        "--add-opens", "java.base/java.nio=ALL-UNNAMED",
+        "--enable-native-access", "ALL-UNNAMED")
+}
+
+tasks.withType<JavaCompile> {
+    options.encoding = "UTF-8"
+    options.compilerArgs.add("-parameters")
+}
+
+tasks.withType<Javadoc> {
+    enabled = false
+}
+

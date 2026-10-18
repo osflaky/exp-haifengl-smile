@@ -1,0 +1,362 @@
+/*
+ * Copyright (c) 2010-2026 Haifeng Li. All rights reserved.
+ *
+ * SMILE is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * SMILE is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with SMILE. If not, see <https://www.gnu.org/licenses/>.
+ */
+package smile.math;
+
+import java.io.Serial;
+import java.io.Serializable;
+import java.util.Iterator;
+import java.util.NoSuchElementException;
+
+/**
+ * Complex number. The object is immutable so once you create and initialize
+ * a Complex object, you cannot modify it.
+ *
+ * @param re the real part.
+ * @param im the imaginary part.
+ * @author Haifeng Li
+ */
+public record Complex(double re, double im) implements Serializable {
+    @Serial
+    private static final long serialVersionUID = 2L;
+
+    /**
+     * Returns a Complex instance representing the specified value.
+     * @param real the real part.
+     * @return the complex object.
+     */
+    public static Complex of(double real) {
+        return new Complex(real, 0.0);
+    }
+
+    /**
+     * Returns a Complex instance representing the specified value.
+     * @param real the real part.
+     * @param imag the imaginary part.
+     * @return the complex object.
+     */
+    public static Complex of(double real, double imag) {
+        return new Complex(real, imag);
+    }
+
+    @Override
+    public String toString() {
+        if (im == 0) {
+            return String.format("%.4f", re);
+        }
+
+        if (re == 0) {
+            return String.format("%.4fi", im);
+        }
+
+        if (im < 0) {
+            return String.format("%.4f - %.4fi", re, -im);
+        }
+
+        return String.format("%.4f + %.4fi", re, im);
+    }
+
+    /**
+     * Returns this + b.
+     * @param b the operand.
+     * @return the result.
+     */
+    public Complex add(Complex b) {
+        Complex a = this;
+        double real = a.re + b.re;
+        double imag = a.im + b.im;
+        return new Complex(real, imag);
+    }
+
+    /**
+     * Returns this - b.
+     * @param b the operand.
+     * @return the result.
+     */
+    public Complex sub(Complex b) {
+        Complex a = this;
+        double real = a.re - b.re;
+        double imag = a.im - b.im;
+        return new Complex(real, imag);
+    }
+
+    /**
+     * Returns this * b.
+     * @param b the operand.
+     * @return the result.
+     */
+    public Complex mul(Complex b) {
+        Complex a = this;
+        double real = a.re * b.re - a.im * b.im;
+        double imag = a.re * b.im + a.im * b.re;
+        return new Complex(real, imag);
+    }
+
+    /**
+     * Scalar multiplication.
+     * @param b the operand.
+     * @return the result.
+     */
+    public Complex scale(double b) {
+        return new Complex(b * re, b * im);
+    }
+
+    /**
+     * Returns a / b.
+     * @param b the operand.
+     * @return the result.
+     */
+    public Complex div(Complex b) {
+        double cdivr, cdivi;
+        double r, d;
+        if (Math.abs(b.re) > Math.abs(b.im)) {
+            r = b.im / b.re;
+            d = b.re + r * b.im;
+            cdivr = (re + r * im) / d;
+            cdivi = (im - r * re) / d;
+        } else {
+            r = b.re / b.im;
+            d = b.im + r * b.re;
+            cdivr = (r * re + im) / d;
+            cdivi = (r * im - re) / d;
+        }
+
+        return new Complex(cdivr, cdivi);
+    }
+
+    /**
+     * Returns the abs/modulus/magnitude.
+     * @return the modulus.
+     */
+    public double abs() {
+        return Math.hypot(re, im);
+    }
+
+    /**
+     * Returns the angle/phase/argument between -pi and pi.
+     * @return the phase between -pi and pi.
+     */
+    public double phase() {
+        return Math.atan2(im, re);
+    }
+
+    /**
+     * Returns the conjugate.
+     * @return the conjugate.
+     */
+    public Complex conjugate() {
+        return new Complex(re, -im);
+    }
+
+    /**
+     * Returns the reciprocal.
+     * @return the reciprocal.
+     */
+    public Complex reciprocal() {
+        double scale = re * re + im * im;
+        return new Complex(re / scale, -im / scale);
+    }
+
+    /**
+     * Returns the complex exponential.
+     * @return the complex exponential.
+     */
+    public Complex exp() {
+        return new Complex(Math.exp(re) * Math.cos(im), Math.exp(re) * Math.sin(im));
+    }
+
+    /**
+     * Returns the complex sine.
+     * @return the complex sine.
+     */
+    public Complex sin() {
+        return new Complex(Math.sin(re) * Math.cosh(im), Math.cos(re) * Math.sinh(im));
+    }
+
+    /**
+     * Returns the complex cosine.
+     * @return the complex cosine.
+     */
+    public Complex cos() {
+        return new Complex(Math.cos(re) * Math.cosh(im), -Math.sin(re) * Math.sinh(im));
+    }
+
+    /**
+     * Returns the complex tangent.
+     * @return the complex tangent.
+     */
+    public Complex tan() {
+        return sin().div(cos());
+    }
+
+    /**
+     * Returns -this (negation).
+     * @return the negated complex number.
+     */
+    public Complex negate() {
+        return new Complex(-re, -im);
+    }
+
+    /**
+     * Returns the principal value of ln(this).
+     * @return the complex natural logarithm.
+     */
+    public Complex log() {
+        return new Complex(Math.log(abs()), phase());
+    }
+
+    /**
+     * Returns the principal value of sqrt(this).
+     * @return the complex square root.
+     */
+    public Complex sqrt() {
+        double r = abs();
+        double re2 = Math.sqrt((r + this.re) / 2.0);
+        double im2 = (this.im >= 0 ? 1.0 : -1.0) * Math.sqrt((r - this.re) / 2.0);
+        return new Complex(re2, im2);
+    }
+
+    /**
+     * Returns this raised to the power of b.
+     * @param b the exponent.
+     * @return this<sup>b</sup>.
+     */
+    public Complex pow(Complex b) {
+        return log().mul(b).exp();
+    }
+
+    /**
+     * Returns this raised to the real power of b.
+     * @param b the real exponent.
+     * @return this<sup>b</sup>.
+     */
+    public Complex pow(double b) {
+        return log().scale(b).exp();
+    }
+
+    /** Packed array of complex numbers for better memory efficiency. */
+    public static class Array {
+        /** The length of array. */
+        public final int length;
+        /** The packed array. */
+        private final double[] data;
+
+        /**
+         * Constructor.
+         *
+         * @param length the length of array.
+         */
+        public Array(int length) {
+            if (length < 0) {
+                throw new IllegalArgumentException("Negative array length: " + length);
+            }
+            this.length = length;
+            data = new double[length * 2];
+        }
+
+        /**
+         * Returns the i-th element.
+         * @param i the index.
+         * @return the i-th element.
+         */
+        public Complex get(int i) {
+            int idx = i << 1;
+            return new Complex(data[idx], data[idx+1]);
+        }
+
+        /**
+         * Returns the i-th element. For Scala convenience.
+         * @param i the index.
+         * @return the i-th element.
+         */
+        public Complex apply(int i) {
+            return get(i);
+        }
+
+        /**
+         * Sets the i-th element.
+         * @param i the index.
+         * @param c the new value.
+         */
+        public void set(int i, Complex c) {
+            int idx = i << 1;
+            data[idx] = c.re;
+            data[idx+1] = c.im;
+        }
+
+        /**
+         * Sets the i-th element with a real value.
+         * @param i the index.
+         * @param re the new value.
+         */
+        public void set(int i, double re) {
+            int idx = i << 1;
+            data[idx] = re;
+        }
+
+        /**
+         * Sets the i-th element. For Scala convenience.
+         * @param i the index.
+         * @param c the new value.
+         */
+        public void update(int i, Complex c) {
+            set(i, c);
+        }
+
+        /**
+         * Sets the i-th element. For Scala convenience.
+         * @param i the index.
+         * @param re the new value.
+         */
+        public void update(int i, double re) {
+            set(i, re);
+        }
+
+        /**
+         * Returns an iterator over the elements.
+         * @return an iterator.
+         */
+        public Iterator<Complex> iterator() {
+            return new Iterator<>() {
+                int cursor = 0;
+
+                @Override
+                public boolean hasNext() {
+                    return cursor < length;
+                }
+
+                @Override
+                public Complex next() {
+                    if (!hasNext()) throw new NoSuchElementException();
+                    return get(cursor++);
+                }
+            };
+        }
+
+        /**
+         * Creates a packed array of complex values.
+         * @param x the complex values.
+         * @return the packed array of complex values.
+         */
+        public static Array of(Complex... x) {
+            Array a = new Array(x.length);
+            for (int i = 0; i < x.length; i++) {
+                a.set(i, x[i]);
+            }
+            return a;
+        }
+    }
+}

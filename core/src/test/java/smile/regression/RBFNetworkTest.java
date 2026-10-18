@@ -1,0 +1,130 @@
+/*
+ * Copyright (c) 2010-2026 Haifeng Li. All rights reserved.
+ *
+ * SMILE is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * SMILE is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with SMILE. If not, see <https://www.gnu.org/licenses/>.
+ */
+package smile.regression;
+
+import smile.datasets.*;
+import smile.io.Read;
+import smile.io.Write;
+import smile.math.MathEx;
+import smile.model.rbf.RBF;
+import smile.validation.CrossValidation;
+import smile.validation.LOOCV;
+import smile.validation.RegressionMetrics;
+import smile.validation.RegressionValidations;
+import org.junit.jupiter.api.*;
+import static org.junit.jupiter.api.Assertions.*;
+
+/**
+ *
+ * @author Haifeng Li
+ */
+public class RBFNetworkTest {
+
+    public RBFNetworkTest() {
+    }
+
+    @BeforeAll
+    public static void setUpClass() throws Exception {
+    }
+
+    @AfterAll
+    public static void tearDownClass() throws Exception {
+    }
+
+    @BeforeEach
+    public void setUp() {
+        MathEx.setSeed(19650218); // to get repeatable results.
+    }
+
+    @AfterEach
+    public void tearDown() {
+    }
+
+    @Test
+    public void testLongley() throws Exception {
+        System.out.println("longley");
+        var longley = new Longley();
+        double[][] x = longley.x();
+        double[] y = longley.y();
+        MathEx.standardize(x);
+        RegressionMetrics metrics = LOOCV.regression(x, y,
+                (xi, yi) -> RBFNetwork.fit(xi, yi, RBF.fit(xi, 10, 5.0)));
+
+        System.out.println(metrics);
+        assertEquals(5.0927, metrics.rmse(), 1E-4);
+
+        RBFNetwork<double[]> model = RBFNetwork.fit(x, y, RBF.fit(x, 10, 5.0));
+        java.nio.file.Path temp = Write.object(model);
+        Read.object(temp);
+    }
+
+    @Test
+    public void testCPU() throws Exception {
+        System.out.println("CPU");
+
+        var cpu = new CPU();
+        double[][] x = cpu.x();
+        double[] y = cpu.y();
+        MathEx.standardize(x);
+        RegressionValidations<RBFNetwork<double[]>> result = CrossValidation.regression(20, x, y,
+                (xi, yi) -> RBFNetwork.fit(xi, yi, RBF.fit(xi, 20, 5.0)));
+
+        System.out.println(result);
+        assertEquals(10.7870, result.avg().rmse(), 1E-4);
+    }
+
+    @Test
+    public void test2DPlanes() throws Exception {
+        System.out.println("2dplanes");
+        var planes = new Planes2D();
+        var result = CrossValidation.regression(10, planes.x(), planes.y(),
+                (xi, yi) -> RBFNetwork.fit(xi, yi, RBF.fit(xi, 20, 5.0)));
+
+        System.out.println(result);
+        assertEquals(1.6042, result.avg().rmse(), 1E-4);
+    }
+
+    @Test
+    public void testAilerons() throws Exception {
+        System.out.println("ailerons");
+
+        var ailerons = new Ailerons();
+        double[][] x = ailerons.x();
+        double[] y = ailerons.y();
+        MathEx.standardize(x);
+        RegressionValidations<RBFNetwork<double[]>> result = CrossValidation.regression(10, x, y,
+                (xi, yi) -> RBFNetwork.fit(xi, yi, RBF.fit(xi, 20, 5.0)));
+
+        System.out.println(result);
+        assertEquals(0.00024, result.avg().rmse(), 1E-5);
+    }
+
+    @Test
+    public void testBank32nh() throws Exception {
+        System.out.println("bank32nh");
+
+        var bank32nh = new Bank32nh();
+        double[][] x = bank32nh.x();
+        double[] y = bank32nh.y();
+        MathEx.standardize(x);
+        RegressionValidations<RBFNetwork<double[]>> result = CrossValidation.regression(10, x, y,
+                (xi, yi) -> RBFNetwork.fit(xi, yi, RBF.fit(xi, 20, 5.0)));
+
+        System.out.println(result);
+        assertEquals(0.0868, result.avg().rmse(), 1E-4);
+    }
+}

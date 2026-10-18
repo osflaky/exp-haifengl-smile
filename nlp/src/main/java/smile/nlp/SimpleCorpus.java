@@ -1,0 +1,389 @@
+/*
+ * Copyright (c) 2010-2026 Haifeng Li. All rights reserved.
+ *
+ * SMILE is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * SMILE is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with SMILE. If not, see <https://www.gnu.org/licenses/>.
+ */
+package smile.nlp;
+
+import java.util.*;
+import smile.nlp.dictionary.EnglishPunctuations;
+import smile.nlp.dictionary.EnglishStopWords;
+import smile.nlp.dictionary.Punctuations;
+import smile.nlp.dictionary.StopWords;
+import smile.nlp.relevance.Relevance;
+import smile.nlp.relevance.RelevanceRanker;
+import smile.nlp.tokenizer.*;
+import smile.sort.HeapSelect;
+import smile.stat.distribution.ChiSquareDistribution;
+import smile.util.MutableInt;
+
+/**
+ * An in-memory document corpus. Useful for text feature engineering.
+ *
+ * @author Haifeng Li
+ */
+public class SimpleCorpus implements Corpus {
+
+    /**
+     * The number of terms in the corpus.
+     */
+    private long size;
+    /**
+     * The set of documents.
+     */
+    private final List<Document> docs = new ArrayList<>();
+    /**
+     * Frequency of single tokens.
+     */
+    private final HashMap<String, MutableInt> freq = new HashMap<>();
+    /**
+     * Frequency of bigrams.
+     */
+    private final HashMap<Bigram, MutableInt> freq2 = new HashMap<>();
+    /**
+     * Inverted file storing a mapping from terms to the documents containing it.
+     */
+    private final HashMap<String, List<Document>> invertedFile = new HashMap<>();
+    /**
+     * Sentence splitter.
+     */
+    private final SentenceSplitter splitter;
+    /**
+     * Tokenizer.
+     */
+    private final Tokenizer tokenizer;
+    /**
+     * The set of stop words.
+     */
+    private final StopWords stopWords;
+
+    /**
+     * The set of punctuations marks.
+     */
+    private final Punctuations punctuations;
+    
+    /**
+     * Constructor.
+     */
+    public SimpleCorpus() {
+        this(SimpleSentenceSplitter.getInstance(), new SimpleTokenizer(), EnglishStopWords.DEFAULT, EnglishPunctuations.getInstance());
+    }
+
+    /**
+     * Constructor.
+     *
+     * @param splitter the sentence splitter.
+     * @param tokenizer the word tokenizer.
+     * @param stopWords the set of stop words to exclude.
+     * @param punctuations the set of punctuation marks to exclude. Set to null to keep all punctuation marks.
+     */
+    public SimpleCorpus(SentenceSplitter splitter, Tokenizer tokenizer, StopWords stopWords, Punctuations punctuations) {
+        this.splitter = splitter;
+        this.tokenizer = tokenizer;
+        this.stopWords = stopWords;
+        this.punctuations = punctuations;
+    }
+
+    /**
+     * Creates a document with corpus's tokenizer, stop word filter, etc.
+     * @param text the text content.
+     * @return the document with unique id.
+     */
+    public Document doc(String text) {
+        return doc(Text.of(text));
+    }
+
+    /**
+     * Creates a document with corpus's tokenizer, stop word filter, etc.
+     * @param text the text.
+     * @return the document with unique id.
+     */
+    public Document doc(Text text) {
+        ArrayList<String> bag = new ArrayList<>();
+
+        for (String sentence : splitter.split(text.content())) {
+            String[] tokens = tokenizer.split(sentence);
+            for (int i = 0; i < tokens.length; i++) {
+                tokens[i] = tokens[i].toLowerCase();
+            }
+
+            for (String w : tokens) {
+                boolean keep = true;
+                if (punctuations != null && punctuations.contains(w)) {
+                    keep = false;
+                } else if (stopWords != null && stopWords.contains(w)) {
+                    keep = false;
+                }
+
+                if (keep) {
+                    size++;
+                    bag.add(w);
+
+                    MutableInt count = freq.get(w);
+                    if (count == null) {
+                        freq.put(w, new MutableInt(1));
+                    } else {
+                        count.increment();
+                    }
+                }
+            }
+
+            for (int i = 0; i < tokens.length - 1; i++) {
+                String w1 = tokens[i];
+                String w2 = tokens[i + 1];
+
+                if (freq.containsKey(w1) && freq.containsKey(w2)) {
+                    Bigram bigram = new Bigram(w1, w2);
+                    MutableInt count = freq2.get(bigram);
+                    if (count == null) {
+                        freq2.put(bigram, new MutableInt(1));
+                    } else {
+                        count.increment();
+                    }
+                }
+            }
+        }
+
+        String[] words = new String[bag.size()];
+        for (int i = 0; i < words.length; i++) {
+            words[i] = bag.get(i);
+        }
+
+        String id = UUID.randomUUID().toString();
+        return new SimpleDocument(id, text.title(), text.content(), words);
+    }
+
+    /**
+     * Adds a document to the corpus.
+     * @param doc the document.
+     */
+    public void add(Document doc) {
+        docs.add(doc);
+
+        for (String term : doc.unique()) {
+            List<Document> hit = invertedFile.computeIfAbsent(term, k -> new ArrayList<>());
+            hit.add(doc);
+        }
+    }
+
+    @Override
+    public long size() {
+        return size;
+    }
+
+    @Override
+    public int docCount() {
+        return docs.size();
+    }
+
+    @Override
+    public int termCount() {
+        return freq.size();
+    }
+
+    @Override
+    public long bigramCount() {
+        return freq2.size();
+    }
+
+    @Override
+    public int avgDocSize() {
+        return docs.isEmpty() ? 0 : (int) (size / docs.size());
+    }
+
+    @Override
+    public int count(String term) {
+        MutableInt count = freq.get(term);
+        return count == null ? 0 : count.value;
+    }
+
+    @Override
+    public int count(Bigram bigram) {
+        MutableInt count = freq2.get(bigram);
+        return count == null ? 0 : count.value;
+    }
+
+    @Override
+    public Iterator<String> terms() {
+        return freq.keySet().iterator();
+    }
+
+    @Override
+    public Iterator<Bigram> bigrams() {
+        return freq2.keySet().iterator();
+    }
+
+    @Override
+    public Iterator<Text> search(String term) {
+        if (invertedFile.containsKey(term)) {
+            ArrayList<Text> hits = new ArrayList<>(invertedFile.get(term));
+            return hits.iterator();
+        } else {
+            return Collections.emptyIterator();
+        }
+    }
+
+    @Override
+    public Iterator<Relevance> search(RelevanceRanker ranker, String term) {
+        if (invertedFile.containsKey(term)) {
+            List<Document> hits = invertedFile.get(term);
+
+            int n = hits.size();
+
+            ArrayList<Relevance> rank = new ArrayList<>(n);
+            for (var doc : hits) {
+                int tf = doc.tf(term);
+                rank.add(new Relevance(doc, ranker.rank(this, doc, term, tf, n)));
+            }
+
+            rank.sort(Collections.reverseOrder());
+            return rank.iterator();
+        } else {
+            return Collections.emptyIterator();
+        }
+    }
+
+    @Override
+    public Iterator<Relevance> search(RelevanceRanker ranker, String[] terms) {
+        Set<Document> hits = new HashSet<>();
+
+        for (String term : terms) {
+            if (invertedFile.containsKey(term)) {
+                hits.addAll(invertedFile.get(term));
+            }
+        }
+
+        int n = hits.size();
+        if (n == 0) {
+            return Collections.emptyIterator();
+        }
+        
+        ArrayList<Relevance> rank = new ArrayList<>(n);
+        for (var doc : hits) {
+            double r = 0.0;
+            for (String term : terms) {
+                int tf = doc.tf(term);
+                r += ranker.rank(this, doc, term, tf, n);
+            }
+
+            rank.add(new Relevance(doc, r));
+        }
+
+        rank.sort(Collections.reverseOrder());
+        return rank.iterator();
+    }
+
+    /**
+     * Chi-square distribution with 1 degree of freedom.
+     */
+    private static final ChiSquareDistribution chisq = new ChiSquareDistribution(1);
+
+    /**
+     * Finds top k bigram collocations in the corpus.
+     * @param k the top k bigram to compute.
+     * @param minFrequency The minimum frequency of bigram in the corpus.
+     * @return the significant bigram collocations in the descending order
+     * of likelihood ratio.
+     */
+    public List<Bigram> bigrams(int k, int minFrequency) {
+        if (k <= 0) throw new IllegalArgumentException("k must be positive: " + k);
+
+        HeapSelect<Bigram> heap = new HeapSelect<>(Bigram.class, k);
+        Iterator<Bigram> iterator = bigrams();
+        while (iterator.hasNext()) {
+            smile.nlp.Bigram bigram = iterator.next();
+            int c12 = count(bigram);
+
+            if (c12 > minFrequency) {
+                int c1 = count(bigram.w1());
+                int c2 = count(bigram.w2());
+
+                double score = likelihoodRatio(c1, c2, c12, size());
+                // Store negated score so HeapSelect (min-heap) keeps the top-k
+                heap.add(new Bigram(bigram.w1(), bigram.w2(), c12, -score));
+            }
+        }
+
+        heap.sort();
+        // un-negate scores for actual score
+        List<Bigram> collocations = new ArrayList<>();
+        for (var bigram : heap.toArray()) {
+            collocations.add(new Bigram(bigram.w1(), bigram.w2(), bigram.count(), -bigram.score()));
+        }
+
+        // Reverse so result is descending by actual score
+        return collocations.reversed();
+    }
+
+    /**
+     * Finds bigram collocations in the given corpus whose p-value is less than
+     * the given threshold.
+     * @param p the p-value threshold
+     * @param minFrequency The minimum frequency of bigram in the corpus.
+     * @return the significant bigram collocations in descending order of likelihood ratio.
+     */
+    public List<Bigram> bigrams(double p, int minFrequency) {
+        if (p <= 0.0 || p >= 1.0) {
+            throw new IllegalArgumentException("Invalid p = " + p);
+        }
+
+        double cutoff = chisq.quantile(p);
+        ArrayList<Bigram> collocations = new ArrayList<>();
+        Iterator<Bigram> iterator = bigrams();
+        while (iterator.hasNext()) {
+            smile.nlp.Bigram bigram = iterator.next();
+            int c12 = count(bigram);
+
+            if (c12 > minFrequency) {
+                int c1 = count(bigram.w1());
+                int c2 = count(bigram.w2());
+
+                double score = likelihoodRatio(c1, c2, c12, size());
+                if (score > cutoff) {
+                    collocations.add(new Bigram(bigram.w1(), bigram.w2(), c12, score));
+                }
+            }
+        }
+
+        collocations.sort(Comparator.reverseOrder());
+        return collocations;
+    }
+
+    /**
+     * Returns the likelihood ratio test statistic -2 log &lambda;
+     * @param c1 the number of occurrences of w1.
+     * @param c2 the number of occurrences of w2.
+     * @param c12 the number of occurrences of w1 w2.
+     * @param N the number of tokens in the corpus.
+     */
+    private static double likelihoodRatio(int c1, int c2, int c12, long N) {
+        double p = (double) c2 / N;
+        double p1 = (double) c12 / c1;
+        double p2 = (double) (c2 - c12) / (N - c1);
+
+        double logLambda = logL(c12, c1, p) + logL(c2-c12, N-c1, p) - logL(c12, c1, p1) - logL(c2-c12, N-c1, p2);
+        return -2 * logLambda;
+    }
+
+    /**
+     * Help function for calculating likelihood ratio statistic.
+     * Probabilities are clipped to (0.01, 0.99) to avoid log(0) or log(1-0)
+     * yielding -Infinity, which would corrupt the statistic.
+     */
+    private static double logL(int k, long n, double x) {
+        if (x == 0.0) x = 0.01;
+        if (x == 1.0) x = 0.99;
+        return k * Math.log(x) + (n-k) * Math.log(1-x);
+    }
+}
