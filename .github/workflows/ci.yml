@@ -1,0 +1,137 @@
+name: CI
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  TORCH_VERSION: "2.13.0"
+  ORT_LOGGING_LEVEL: "3"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - os: macos-latest
+          arch: x64
+          runner: macos-15-intel
+          expander_leg: macos-latest--x64
+    name: Test (Java 25) [${{ matrix.expander_leg }}]
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      actions: write
+
+    steps:
+    - name: Install native dependencies
+      run: sudo apt-get update && sudo apt-get install -y libopenblas-dev 
+        libarpack2-dev xvfb cmake build-essential
+
+    - name: Install ONNX Runtime and set LD_LIBRARY_PATH
+      run: |
+        # CPU wheels only — GitHub-hosted runners have no GPU.
+        # Use the same interpreter for install and path resolution so pip/python
+        # cannot disagree about site-packages (the old `pip show` / `find` pitfall).
+        python3 -m pip install --user onnxruntime onnxruntime-genai
+
+        ONNX_CAPI_DIR=$(python3 -c "import onnxruntime, os; print(os.path.join(os.path.dirname(onnxruntime.__file__), 'capi'))")
+        ONNX_GENAI_DIR=$(python3 -c "import onnxruntime_genai, os; print(os.path.dirname(onnxruntime_genai.__file__))")
+
+        if [ ! -d "$ONNX_CAPI_DIR" ]; then
+          echo "ERROR: onnxruntime capi missing at: ${ONNX_CAPI_DIR}" >&2
+          exit 1
+        fi
+        if [ ! -d "$ONNX_GENAI_DIR" ]; then
+          echo "ERROR: onnxruntime_genai missing at: ${ONNX_GENAI_DIR}" >&2
+          exit 1
+        fi
+        echo "Found ONNX capi at: ${ONNX_CAPI_DIR}"
+        echo "Found ONNX GENAI at: ${ONNX_GENAI_DIR}"
+
+        # Create a symlink to the latest libonnxruntime.so in the capi directory
+        ln -sfr "$(ls -t ${ONNX_CAPI_DIR}/libonnxruntime.so.* | head -n 1)" ${ONNX_CAPI_DIR}/libonnxruntime.so
+
+        # Use the safe ${VAR:+:$VAR} idiom so no trailing colon is introduced when
+        # LD_LIBRARY_PATH is unset or empty (an empty segment is interpreted as CWD
+        # by glibc and may be silently rejected by the JVM launcher).
+        {
+          echo "LD_LIBRARY_PATH=${ONNX_CAPI_DIR}:${ONNX_GENAI_DIR}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+          # Absolute dirs for GenAI preload / Model.open (preferred over LD_LIBRARY_PATH alone).
+          echo "ONNXRUNTIME_NATIVE_PATH=${ONNX_CAPI_DIR}"
+          echo "ONNXRUNTIME_GENAI_NATIVE_PATH=${ONNX_GENAI_DIR}"
+          # Runners have no GPU; never attempt the CUDA EP in CI.
+          echo "SMILE_ONNX_GENAI_PROVIDER=cpu"
+        } | tee -a "$GITHUB_ENV"
+
+    - name: Checkout repository
+      uses: actions/checkout@v6
+
+    - name: Install LibTorch
+      run: |
+        if [ "${{ matrix.arch }}" = "arm64" ]; then
+          # The libtorch zip on download.pytorch.org is x86_64-only. On aarch64
+          # use the CPU torch wheel, which ships the same lib/, include/ and
+          # share/cmake/Torch layout, and expose it as deep/libtorch.
+          python3 -m pip install --user "torch==${{ env.TORCH_VERSION }}" \
+            --index-url https://download.pytorch.org/whl/cpu
+          TORCH_DIR=$(python3 -c "import torch, os; print(os.path.dirname(torch.__file__))")
+          echo "Found torch at: ${TORCH_DIR}"
+          mkdir -p deep
+          ln -sfn "${TORCH_DIR}" deep/libtorch
+        else
+          # Substitute the TORCH_VERSION placeholder in the URL template.
+          LIBTORCH_URL="https://download.pytorch.org/libtorch/cpu/libtorch-shared-with-deps-TORCH_VERSION%2Bcpu.zip"
+          LIBTORCH_URL="${LIBTORCH_URL/TORCH_VERSION/${{ env.TORCH_VERSION }}}"
+          echo "Downloading: ${LIBTORCH_URL}"
+          curl -fsSL --retry 5 --retry-delay 10 -o libtorch.zip "${LIBTORCH_URL}"
+          unzip -q -o libtorch.zip -d deep
+        fi
+
+    - name: Build smile_torch for the runner architecture
+      if: matrix.arch == 'arm64'
+      run: |
+        # The checked-in studio/src/universal/bin/libsmile_torch.so is x86_64;
+        # build the native C API against the aarch64 LibTorch instead.
+        cmake -S deep/src/main/cpp \
+              -B build/cpp \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DLIBTORCH_ROOT="${{ github.workspace }}/deep/libtorch" \
+              -DSMILE_TORCH_USE_CUDA=OFF \
+              -DUSE_FLASHINFER=OFF \
+              -DUSE_MARLIN=OFF \
+              -DBUILD_TESTING=OFF
+        cmake --build build/cpp --config Release --parallel "$(nproc)"
+        cp -f build/cpp/libsmile_torch.so studio/src/universal/bin/libsmile_torch.so
+        file studio/src/universal/bin/libsmile_torch.so || true
+
+    - name: Set up Java 25
+      uses: actions/setup-java@v5
+      with:
+        distribution: temurin
+        java-version: '25'
+        cache: gradle
+
+    - name: Grant execute permission to Gradle wrapper
+      run: chmod +x gradlew
+
+    - name: Run unit tests (skip integration tests)
+        # No SMILE_ONNX_GENAI_MODEL on runners: GenAINativeTest skips model cases and
+        # only exercises natives when ONNXRUNTIME_* paths are set (above).
+      run: xvfb-run --auto-servernum ./gradlew test -DexcludeTags=integration 
+        --no-daemon
+
+    - name: Upload test reports
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: test-reports
+        path: '**/build/reports/tests/'
+        retention-days: 14
+
+    timeout-minutes: 150
